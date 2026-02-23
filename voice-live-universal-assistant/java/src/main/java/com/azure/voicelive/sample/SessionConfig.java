@@ -9,7 +9,7 @@ import java.util.Optional;
 public class SessionConfig {
 
     // Connection / mode
-    private String mode = "agent";
+    private String mode = "model";
     private String model = "gpt-realtime";
     private String voice = "en-US-Ava:DragonHDLatestNeural";
     private String voiceType = "azure-standard";

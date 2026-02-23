@@ -109,7 +109,7 @@ async def health():
 @app.get("/config")
 async def get_config():
     return {
-        "mode": os.getenv("VOICELIVE_MODE", "agent"),
+        "mode": os.getenv("VOICELIVE_MODE", "model"),
         "model": os.getenv("VOICELIVE_MODEL", "gpt-realtime"),
         "voice": os.getenv("VOICELIVE_VOICE", "en-US-Ava:DragonHDLatestNeural"),
         "voiceType": os.getenv("VOICELIVE_VOICE_TYPE", "azure-standard"),
@@ -243,7 +243,7 @@ async def _start_session(client_id: str, config: dict, websocket: WebSocket):
 
         # Build typed session config — frontend values override .env defaults
         session_config = SessionConfig(
-            mode=config.get("mode", os.getenv("VOICELIVE_MODE", "agent")),
+            mode=config.get("mode", os.getenv("VOICELIVE_MODE", "model")),
             model=config.get("model", os.getenv("VOICELIVE_MODEL", "gpt-realtime")),
             voice=config.get("voice", os.getenv("VOICELIVE_VOICE", "en-US-Ava:DragonHDLatestNeural")),
             voice_type=config.get("voice_type", os.getenv("VOICELIVE_VOICE_TYPE", "azure-standard")),

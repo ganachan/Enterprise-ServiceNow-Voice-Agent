@@ -140,7 +140,7 @@ public class Application implements WebMvcConfigurer {
     public Map<String, Object> config() {
         String apiKey = envOrDefault("AZURE_VOICELIVE_API_KEY", null);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("mode", envOrDefault("VOICELIVE_MODE", "agent"));
+        result.put("mode", envOrDefault("VOICELIVE_MODE", "model"));
         result.put("model", envOrDefault("VOICELIVE_MODEL", "gpt-realtime"));
         result.put("voice", envOrDefault("VOICELIVE_VOICE", "en-US-Ava:DragonHDLatestNeural"));
         result.put("voiceType", envOrDefault("VOICELIVE_VOICE_TYPE", "azure-standard"));

@@ -66,7 +66,7 @@ class SessionConfig:
     """
 
     # Connection / mode
-    mode: str = "agent"
+    mode: str = "model"
     model: str = "gpt-realtime"
     voice: str = "en-US-Ava:DragonHDLatestNeural"
     voice_type: str = "azure-standard"

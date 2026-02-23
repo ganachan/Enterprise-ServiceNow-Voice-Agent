@@ -154,7 +154,7 @@ public class VoiceLiveWebSocketHandler extends TextWebSocketHandler {
     private SessionConfig buildSessionConfig(Map<String, Object> msg) {
         SessionConfig config = new SessionConfig();
 
-        config.setMode(getStringOrEnv(msg, "mode", "VOICELIVE_MODE", "agent"));
+        config.setMode(getStringOrEnv(msg, "mode", "VOICELIVE_MODE", "model"));
         config.setModel(getStringOrEnv(msg, "model", "VOICELIVE_MODEL", "gpt-realtime"));
         config.setVoice(getStringOrEnv(msg, "voice", "VOICELIVE_VOICE", "en-US-Ava:DragonHDLatestNeural"));
         config.setVoiceType(getStringOrEnv(msg, "voice_type", "VOICELIVE_VOICE_TYPE", "azure-standard"));

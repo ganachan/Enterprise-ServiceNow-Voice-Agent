@@ -78,8 +78,11 @@ Java samples  showcasing:
 ### [Voice Live Universal Assistant](./voice-live-universal-assistant/)
 Full-stack web application with a **shared React+Vite+TypeScript frontend** and per-language backend implementations:
 - **Shared frontend**: Fluent-aligned design system (light/dark/system themes), voice orb visualization, CC transcript, voice type selection (OpenAI + Azure Standard)
-- **Python backend** (v1): FastAPI + WebSocket proxy with Agent and Model mode support
-- **Java, JavaScript, C# backends**: Planned
+- **Python backend**: FastAPI + WebSocket proxy with Agent and Model mode support
+- **Java backend**: Spring Boot + WebSocket proxy with Agent and Model mode support
+- **JavaScript, C# backends**: Planned
+- **Backend selection**: Set `BACKEND_LANGUAGE` at deploy time (`python`, `java`, `javascript`, `csharp`) — frontend is shared and language-agnostic
+- **Connection modes**: Model mode (default — works with just a Foundry endpoint) or Agent mode (auto-set when deploying with `CREATE_AGENT=true`)
 - **Azure deployment**: Full `azd up` infrastructure with Bicep IaC — Container Apps, ACR, RBAC, optional AI Foundry provisioning, and optional Foundry Agent creation with GPT-4.1-mini
 - 91 unit tests + E2E audio test
 

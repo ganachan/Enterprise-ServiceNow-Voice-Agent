@@ -45,8 +45,8 @@ Set `VOICELIVE_MODE` in `.env`:
 
 | Mode    | Description                                      |
 |---------|--------------------------------------------------|
-| `agent` | Connects via Foundry Agent Service (default)     |
-| `model` | Connects directly to a model (e.g. gpt-realtime) |
+| `model` | Connects directly to a model (e.g. gpt-realtime) — default |
+| `agent` | Connects via Foundry Agent Service               |
 
 ## Settings
 

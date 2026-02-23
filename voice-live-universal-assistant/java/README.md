@@ -60,3 +60,44 @@ Identical to the Python backend:
 
 See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for SDK gaps and workarounds in the beta.4 release.
 
+## Connection Modes
+
+Set `VOICELIVE_MODE` in `.env`:
+
+| Mode    | Description                                      |
+|---------|--------------------------------------------------|
+| `model` | Connects directly to a model (e.g. gpt-realtime) — default |
+| `agent` | Connects via Foundry Agent Service               |
+
+## Settings
+
+All settings are configurable from the frontend UI. Default values can be set via `.env`:
+
+| Setting | Env Variable | Default |
+|---------|-------------|---------|
+| Mode | `VOICELIVE_MODE` | `model` |
+| Model | `VOICELIVE_MODEL` | `gpt-realtime` |
+| Voice | `VOICELIVE_VOICE` | `en-US-Ava:DragonHDLatestNeural` |
+| Temperature | `VOICELIVE_TEMPERATURE` | `0.7` |
+| VAD Type | `VOICELIVE_VAD_TYPE` | `azure_semantic` |
+| Instructions | `VOICELIVE_INSTRUCTIONS` | _(empty)_ |
+| Agent Name | `AZURE_VOICELIVE_AGENT_NAME` | _(required for agent mode)_ |
+| Project | `AZURE_VOICELIVE_PROJECT` | _(required for agent mode)_ |
+
+## Local Development
+
+Build the frontend first, then run the backend:
+
+```bash
+# Build frontend (from repo root)
+cd frontend && npm install && npm run build && cd ..
+
+# Run Java backend
+cd java
+cp .env.sample .env
+# Edit .env with your endpoint
+mvn spring-boot:run
+```
+
+The server serves the built frontend from `../frontend/dist/` or `static/`.
+

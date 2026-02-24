@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using System.ClientModel.Primitives;
+
 using Azure;
 using Azure.AI.VoiceLive;
 using Azure.Core;
@@ -254,8 +254,14 @@ public class VoiceLiveHandler
         }
         options.InputAudioTranscription = transcription;
 
-        // Interim response — not a typed property on VoiceLiveSessionOptions in 1.1.0-beta.2,
-        // so we inject it via JSON round-trip through the SDK's additional-properties bag.
+        await session.ConfigureSessionAsync(options);
+
+        _logger.LogInformation("[{ClientId}] Session configured ({Mode} mode, voice={Voice}, vad={Vad})",
+            _clientId, _config.Mode, _config.Voice, _config.VadType);
+
+        // Interim response — sent as a separate session.update command after ConfigureSessionAsync
+        // because VoiceLiveSessionOptions doesn't expose the InterimResponse property in this SDK version.
+        // Pattern from: https://learn.microsoft.com/azure/ai-services/speech-service/how-to-voice-agent-integration
         if (_config.InterimResponse)
         {
             var triggers = new List<string>();
@@ -264,57 +270,44 @@ public class VoiceLiveHandler
 
             if (triggers.Count > 0)
             {
-                // Serialize current options to JSON
-                var json = ModelReaderWriter.Write(options).ToString();
-                var doc = JsonDocument.Parse(json);
-
-                using var ms = new MemoryStream();
-                using (var writer = new Utf8JsonWriter(ms))
+                object interimConfig;
+                if (_config.InterimResponseType == "static")
                 {
-                    writer.WriteStartObject();
-                    foreach (var prop in doc.RootElement.EnumerateObject())
-                        prop.WriteTo(writer);
-
-                    // Inject interim_response
-                    writer.WritePropertyName("interim_response");
-                    writer.WriteStartObject();
-                    writer.WriteString("type",
-                        _config.InterimResponseType == "static" ? "static_interim_response" : "llm_interim_response");
-                    writer.WriteStartArray("triggers");
-                    foreach (var t in triggers) writer.WriteStringValue(t);
-                    writer.WriteEndArray();
-                    if (_config.InterimTriggerLatency)
-                        writer.WriteNumber("latency_threshold_ms", _config.InterimLatencyMs);
-                    if (_config.InterimResponseType == "static")
+                    var texts = string.IsNullOrWhiteSpace(_config.InterimStaticTexts)
+                        ? new[] { "One moment please..." }
+                        : _config.InterimStaticTexts.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    interimConfig = new
                     {
-                        var texts = string.IsNullOrWhiteSpace(_config.InterimStaticTexts)
-                            ? new[] { "One moment please..." }
-                            : _config.InterimStaticTexts.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        writer.WriteStartArray("texts");
-                        foreach (var t in texts) writer.WriteStringValue(t);
-                        writer.WriteEndArray();
-                    }
-                    else
+                        type = "static_interim_response",
+                        triggers,
+                        latency_threshold_ms = _config.InterimTriggerLatency ? _config.InterimLatencyMs : (int?)null,
+                        texts
+                    };
+                }
+                else
+                {
+                    interimConfig = new
                     {
-                        if (!string.IsNullOrWhiteSpace(_config.InterimInstructions))
-                            writer.WriteString("instructions", _config.InterimInstructions);
-                    }
-                    writer.WriteEndObject();
-                    writer.WriteEndObject();
+                        type = "llm_interim_response",
+                        triggers,
+                        latency_threshold_ms = _config.InterimTriggerLatency ? _config.InterimLatencyMs : (int?)null,
+                        instructions = string.IsNullOrWhiteSpace(_config.InterimInstructions)
+                            ? "Create friendly interim responses indicating wait time due to ongoing processing, if any."
+                            : _config.InterimInstructions
+                    };
                 }
 
-                var newJson = Encoding.UTF8.GetString(ms.ToArray());
-                options = ModelReaderWriter.Read<VoiceLiveSessionOptions>(BinaryData.FromString(newJson))!;
+                await session.SendCommandAsync(
+                    BinaryData.FromObjectAsJson(new
+                    {
+                        type = "session.update",
+                        session = new { interim_response = interimConfig }
+                    }));
 
                 _logger.LogInformation("[{ClientId}] Interim response enabled (type={Type}, triggers={Triggers})",
                     _clientId, _config.InterimResponseType, string.Join(",", triggers));
             }
         }
-
-        await session.ConfigureSessionAsync(options);
-
-        _logger.LogInformation("[{ClientId}] Session configured ({Mode} mode, voice={Voice}, vad={Vad})",
-            _clientId, _config.Mode, _config.Voice, _config.VadType);
     }
 
     // ------------------------------------------------------------------

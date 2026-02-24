@@ -235,17 +235,14 @@ public class VoiceLiveHandler
             options.InputAudioNoiseReduction = new AudioNoiseReduction(AudioNoiseReductionType.AzureDeepNoiseSuppression);
         }
 
-        // Transcription (model mode — agent mode has its own transcription config)
-        if (_config.Mode == "model")
+        // Transcription — enabled in both modes for user speech display
+        var transcription = new AudioInputTranscriptionOptions(
+            new AudioInputTranscriptionOptionsModel(_config.TranscribeModel));
+        if (!string.IsNullOrWhiteSpace(_config.InputLanguage))
         {
-            var transcription = new AudioInputTranscriptionOptions(
-                new AudioInputTranscriptionOptionsModel(_config.TranscribeModel));
-            if (!string.IsNullOrWhiteSpace(_config.InputLanguage))
-            {
-                transcription.Language = _config.InputLanguage;
-            }
-            options.InputAudioTranscription = transcription;
+            transcription.Language = _config.InputLanguage;
         }
+        options.InputAudioTranscription = transcription;
 
         // Interim response — not a typed property on VoiceLiveSessionOptions,
         // so we send a raw session.update command after the initial configure.

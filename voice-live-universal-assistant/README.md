@@ -15,9 +15,10 @@ The frontend builds to static files served by the backend — no separate fronte
 
 ## Prerequisites
 
-- **Node.js** 18+ and npm (for building the frontend)
+- **Node.js** 20+ and npm (for building the frontend; also for the JavaScript backend)
 - **Python** 3.9+ (for the Python backend)
 - **Java** 17+ and Maven 3.8+ (for the Java backend)
+- **.NET** 8.0 SDK (for the C# backend)
 - An **Azure AI Services** resource with Voice Live API access
 
 ## Authentication
@@ -136,6 +137,59 @@ Open **http://localhost:8000** in your browser.
 
 > **Note:** See [java/KNOWN_ISSUES.md](java/KNOWN_ISSUES.md) for SDK feature gaps in the current beta release.
 
+## Quick Start (JavaScript / Node.js)
+
+### 1. Build the frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+### 2. Set up the Node.js backend
+
+```bash
+cd javascript
+npm install
+cp .env.sample .env
+# Edit .env with your Azure Voice Live endpoint
+```
+
+### 3. Run
+
+```bash
+npm start
+```
+
+Open **http://localhost:8000** in your browser.
+
+## Quick Start (C# / ASP.NET Core)
+
+### 1. Build the frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+### 2. Set up the C# backend
+
+```bash
+cd csharp
+cp .env.sample .env
+# Edit .env with your Azure Voice Live endpoint
+```
+
+### 3. Build and run
+
+```bash
+dotnet run
+```
+
+Open **http://localhost:8000** in your browser.
+
 ## Connection Modes
 
 | Mode    | Use case | How it works |
@@ -172,8 +226,19 @@ voice-live-universal-assistant/
 │   ├── KNOWN_ISSUES.md        # SDK feature gaps and workarounds
 │   ├── .env.sample            # Environment variable template
 │   └── README.md              # Java-specific docs
-├── javascript/                # JavaScript/Node.js backend (🚧 Coming soon)
-├── csharp/                    # C# ASP.NET Core backend (🚧 Coming soon)
+├── javascript/                # JavaScript/Node.js backend (Express + Voice Live SDK)
+│   ├── app.js                 # Express server with WebSocket endpoint
+│   ├── voiceHandler.js        # VoiceHandler — SDK bridge
+│   ├── package.json           # npm config (@azure/ai-voicelive 1.0.0-beta.3)
+│   ├── .env.sample            # Environment variable template
+│   └── README.md              # JavaScript-specific docs
+├── csharp/                    # C# ASP.NET Core backend (Voice Live SDK)
+│   ├── Program.cs             # ASP.NET Core minimal API + WebSocket middleware
+│   ├── VoiceLiveHandler.cs    # VoiceLiveHandler — SDK bridge
+│   ├── SessionConfig.cs       # Session configuration POCO
+│   ├── VoiceLiveWebApp.csproj # .NET project (Azure.AI.VoiceLive 1.1.0-beta.2)
+│   ├── .env.sample            # Environment variable template
+│   └── README.md              # C#-specific docs
 ├── infra/                     # Azure Bicep IaC
 │   ├── main.bicep             # Entry point (Container Apps + optional Foundry + Agent)
 │   ├── main-app.bicep         # Container App with Voice Live env vars
@@ -327,6 +392,8 @@ The frontend and backend communicate over WebSocket at `/ws/{clientId}`.
 |---------|-----|---------|-------|
 | Python  | `azure-ai-voicelive` | 1.0.0b1 | API version pinned to `2026-01-01-preview` in `connect()` — required for interim response and agent mode |
 | Java    | `azure-ai-voicelive` | 1.0.0-beta.5 | Service version pinned to `V2026_01_01_PREVIEW` — SDK defaults to GA which breaks agent/interim features. See [java/KNOWN_ISSUES.md](java/KNOWN_ISSUES.md) |
+| JavaScript | `@azure/ai-voicelive` | 1.0.0-beta.3 | API version pinned to `2026-01-01-preview` via client options. Node.js 20+ required |
+| C#      | `Azure.AI.VoiceLive` | 1.1.0-beta.2 | Service version pinned to `V2026_01_01_PREVIEW` via `VoiceLiveClientOptions` |
 
 ### Frontend UX Guards
 

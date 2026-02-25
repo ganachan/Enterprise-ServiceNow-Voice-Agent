@@ -286,7 +286,7 @@ class BasicVoiceAssistant:
                 self.agent_config.get("agent_version"),
                 self.agent_config.get("conversation_id"),
                 self.agent_config.get("foundry_resource_override"),
-                self.agent_config.get("agent-authentication-identity-client-id")
+                self.agent_config.get("authentication_identity_client_id")
             )
 
             # Connect using AgentSessionConfig (new SDK pattern)

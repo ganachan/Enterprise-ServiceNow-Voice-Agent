@@ -433,6 +433,7 @@ Shows where each validation is enforced — frontend-only guards rely on the UI 
 ## Future Improvements
 
 - **Agent mode fail-fast:** When `mode=agent` but `agentName` or `projectName` are missing, the C# and Java backends silently fall back to model mode. The frontend already prevents this (Start button is disabled until both fields are set), but the backends should return an explicit error instead of downgrading. Python and JavaScript pass the config through and let the SDK validate.
+- **Align backend validation guards:** As shown in the [Validation Guard Matrix](#validation-guard-matrix), transcribe model auto-correction and interim response guards are inconsistent across backends. Python and Java rely entirely on the frontend for these validations. All backends should enforce the same server-side guards to prevent invalid configurations when the frontend is bypassed (e.g., direct WebSocket clients).
 
 ## Testing
 

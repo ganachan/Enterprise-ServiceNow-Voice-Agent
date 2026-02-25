@@ -203,7 +203,7 @@ ModelQuickstart/
 
 ## Next Steps
 
-- Explore the [Agent Quickstart](../AgentQuickstart/) sample for agent-based conversations
+- Explore the [Agents New Quickstart](../AgentsNewQuickstart/) sample for agent-based conversations
 - Learn about function calling and custom tools
 - Customize the system instructions for your use case
 - Integrate with your own applications and services

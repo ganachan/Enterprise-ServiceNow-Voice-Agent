@@ -6,6 +6,16 @@ This folder contains Python samples demonstrating how to build real-time voice a
 
 ## Available Samples
 
+### [Agents New Quickstart](./voice-live-quickstarts/AgentsNewQuickstart/)
+
+Demonstrates the new Voice Live + Foundry Agent v2 workflow, including creating a Voice Live-configured agent and running an agent-connected voice assistant.
+
+**Key Features:**
+- Agent creation utility with Voice Live metadata chunking
+- New SDK-based agent session configuration (`AgentSessionConfig`)
+- Proactive greeting and barge-in handling
+- Conversation logging
+
 ### [Agent Quickstart](./voice-live-quickstarts/agents-quickstart.py)
 
 Demonstrates connecting to an Azure AI Foundry agent for voice conversations. The agent handles model selection, instructions, and tools, with support for proactive greetings.
@@ -70,7 +80,7 @@ All samples require:
 
 Depending on which sample you want to run:
 
-**For Agent Quickstart:**
+**For Agent Quickstart and Agents New Quickstart:**
 - [Azure AI Foundry project](https://learn.microsoft.com/azure/ai-studio/how-to/create-projects) with a deployed agent
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) for authentication
 
@@ -109,6 +119,11 @@ Depending on which sample you want to run:
 
 5. **Run a sample**:
    ```bash
+   # New v2 agent quickstart
+   python AgentsNewQuickstart/voice-live-with-agent-v2.py
+   # or create an agent configured for Voice Live
+   python AgentsNewQuickstart/create_agent_v2_with_voicelive.py
+   # or classic agent quickstart
    python agents-quickstart.py
    # or
    python model-quickstart.py
@@ -120,10 +135,12 @@ Depending on which sample you want to run:
 
 ### Authentication
 
-**Agent Quickstart** requires Azure authentication:
+**Agent Quickstart and Agents New Quickstart** require Azure authentication:
 ```bash
 az login
 python agents-quickstart.py
+# or
+python AgentsNewQuickstart/voice-live-with-agent-v2.py
 ```
 
 **Model Quickstart, BYOM Quickstart, and Function Calling** support both methods:

@@ -6,7 +6,7 @@ This folder contains C# samples demonstrating how to build real-time voice assis
 
 ## Available Samples
 
-### [Agent Quickstart](./AgentQuickstart/)
+### [Agent Quickstart](./voice-live-quickstarts/AgentQuickstart/)
 Demonstrates connecting to an Azure AI Foundry agent for voice conversations. The agent handles model selection, instructions, and tools, with support for proactive greetings.
 
 **Key Features:**
@@ -15,7 +15,7 @@ Demonstrates connecting to an Azure AI Foundry agent for voice conversations. Th
 - Azure authentication (required)
 - Agent-managed tools and instructions
 
-### [Model Quickstart](./ModelQuickstart/)
+### [Model Quickstart](./voice-live-quickstarts/ModelQuickstart/)
 Demonstrates direct integration with VoiceLive models for voice conversations without agent overhead.
 
 **Key Features:**
@@ -24,7 +24,7 @@ Demonstrates direct integration with VoiceLive models for voice conversations wi
 - Custom instructions support
 - Model selection options
 
-### [Bring-Your-Own-Model Quickstart (BYOM)](./BringYourOwnModelQuickstart/)
+### [Bring-Your-Own-Model Quickstart (BYOM)](./voice-live-quickstarts/BringYourOwnModelQuickstart/)
 Demonstrates direct integration with VoiceLive using bring-your-own-models from Foundry.
 
 **Key Features:**
@@ -32,6 +32,15 @@ Demonstrates direct integration with VoiceLive using bring-your-own-models from 
 - Proactive Greeting: Agent initiates the conversation with a welcome message
 - Custom Instructions: Define your own system instructions for the AI
 - Flexible Authentication: Supports both API key and Azure credential authentication
+
+### [Agents New Quickstart](./voice-live-quickstarts/AgentsNewQuickstart/)
+Demonstrates the new Voice Live + Foundry Agent workflow, including creating an agent with Voice Live metadata and running a v2 voice assistant sample.
+
+**Key Features:**
+- Agent creation utility with Voice Live configuration chunking
+- New SDK-based agent session configuration (`AgentSessionConfig`)
+- Proactive greeting and barge-in handling
+- Conversation logging
 
 ### [Customer Service Bot](./CustomerServiceBot/)
 Demonstrates sophisticated customer service capabilities using VoiceLive with function calling. The bot handles complex customer inquiries with natural voice conversations.
@@ -71,7 +80,7 @@ Depending on which sample you want to run:
 
 ### Quick Start
 
-1. **Choose a sample**: Navigate to either `AgentQuickstart` or `ModelQuickstart` folder
+1. **Choose a sample**: Navigate to a folder under `voice-live-quickstarts` (for example, `AgentQuickstart`, `AgentsNewQuickstart`, or `ModelQuickstart`)
 2. **Install prerequisites**: Ensure .NET 8.0 SDK is installed
 3. **Set up Azure resources**: Create required Azure resources based on the sample
 4. **Configure settings**: Update `appsettings.json` with your Azure credentials
@@ -90,7 +99,7 @@ az login
 dotnet run
 ```
 
-**Bring-Your-Own-/Model Quickstart** supports both methods:
+**Bring-Your-Own-Model Quickstart** supports both methods:
 ```powershell
 # With API key (from appsettings.json or --api-key)
 dotnet run
@@ -188,7 +197,7 @@ User Voice → Microphone → AudioProcessor → VoiceLive SDK → Azure AI Foun
 User Hears ← Speakers ← AudioProcessor ← VoiceLive SDK ← Agent Response
 ```
 
-### Bring-Your-Own-/Model Quickstart Flow
+### Bring-Your-Own-Model Quickstart Flow
 ```
 User Voice → Microphone → AudioProcessor → VoiceLive SDK → Azure AI Model (gpt-realtime/BYOM)
                                                                       ↓

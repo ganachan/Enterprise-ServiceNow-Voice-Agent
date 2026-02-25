@@ -6,6 +6,16 @@ This folder contains JavaScript samples demonstrating how to build real-time voi
 
 ## Available Samples
 
+### [Agents New Quickstart](./voice-live-quickstarts/AgentsNewQuickstart/)
+
+A Node.js quickstart demonstrating the Voice Live + Foundry Agent v2 flow, including agent creation and voice assistant runtime samples.
+
+**Key Features:**
+- Agent creation utility with Voice Live metadata
+- Voice Live session targetting Foundry agents
+- Proactive greeting and barge-in handling
+- Conversation logging
+
 ### [Basic Web Voice Assistant](./basic-web-voice-assistant/)
 
 A browser-based voice assistant demonstrating Azure Voice Live SDK integration in a web application using TypeScript and the Web Audio API.
@@ -45,7 +55,7 @@ A React + Vite demo showcasing a Voice-Enabled Car Assistant powered by Azure Op
 - Real-time EV driving cycle simulation
 - Latency and token usage benchmarking
 
-### [Voice Live Interpreter Demo](./voicelive-interpretator-demo/)
+### [Voice Live Interpreter Demo](./voice-live-interpreter-demo/)
 
 A minimal Vite + React + TypeScript demo that uses **Azure Voice Live** for real-time speech translation.
 
@@ -82,6 +92,7 @@ All samples require:
 
 | Sample | Requirements |
 |--------|--------------|
+| Agents New Quickstart | [Node.js 18+](https://nodejs.org/) with npm |
 | Basic Web Voice Assistant | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Avatar | [Docker](https://www.docker.com/get-started) |
 | Voice Live Car Demo | [Node.js 18+](https://nodejs.org/) with npm |

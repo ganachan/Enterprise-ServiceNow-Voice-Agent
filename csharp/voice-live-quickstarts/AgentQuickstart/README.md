@@ -1,6 +1,6 @@
 # Agent Quickstart
 
-> **For common setup instructions, troubleshooting, and detailed information, see the [C# Samples README](../README.md)**
+> **For common setup instructions, troubleshooting, and detailed information, see the [C# Samples README](../../README.md)**
 
 This sample demonstrates how to build a real-time voice assistant that connects to an **Azure AI Foundry agent**. The agent manages model selection, instructions, and tools, enabling sophisticated conversational AI scenarios.
 
@@ -17,7 +17,7 @@ This sample showcases:
 
 - [Azure AI Foundry project](https://learn.microsoft.com/azure/ai-studio/how-to/create-projects) with a deployed agent
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) for authentication
-- See [C# Samples README](../README.md) for common prerequisites
+- See [C# Samples README](../../README.md) for common prerequisites
 
 ## Quick Start
 
@@ -67,4 +67,4 @@ dotnet run --voice "en-US-JennyNeural" --verbose
 - `--voice`: Voice for the assistant (default: "en-US-AvaNeural")
 - `--verbose`: Enable detailed logging
 
-See [C# Samples README](../README.md) for available voices, troubleshooting, and additional resources.
+See [C# Samples README](../../README.md) for available voices, troubleshooting, and additional resources.

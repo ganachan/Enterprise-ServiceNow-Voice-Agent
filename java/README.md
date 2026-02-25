@@ -6,6 +6,17 @@ This folder contains Java samples demonstrating how to build real-time voice ass
 
 ## Available Samples
 
+### [Agents New Quickstart](./voice-live-quickstarts/AgentsNewQuickstart/)
+
+Demonstrates the new Voice Live + Foundry Agent flow, including creating an agent configured for Voice Live and running a v2 agent-connected voice assistant sample.
+
+**Key Features:**
+
+- Agent creation utility with Voice Live metadata chunking
+- New SDK-based agent session configuration
+- Proactive greeting and barge-in handling
+- Conversation logging
+
 ### [Model Quickstart](./voice-live-quickstarts/ModelQuickstart/)
 
 Demonstrates direct integration with VoiceLive models for voice conversations without agent overhead.
@@ -41,7 +52,7 @@ Depending on which sample you want to run:
 
 ### Quick Start
 
-1. **Choose a sample**: Navigate to the `voice-live-quickstarts/ModelQuickstart` folder
+1. **Choose a sample**: Navigate to a folder under `voice-live-quickstarts` (for example, `ModelQuickstart` or `AgentsNewQuickstart`)
 2. **Install prerequisites**: Ensure Java 11+ and Maven 3.6+ are installed
 3. **Set up Azure resources**: Create required Azure resources based on the sample
 4. **Configure settings**: Copy `application.properties.sample` to `application.properties` and update with your Azure credentials
@@ -155,13 +166,12 @@ See [Azure Text-to-Speech voice list](https://learn.microsoft.com/azure/ai-servi
 - Clear Maven cache: `mvn clean` or delete `~/.m2/repository`
 - Check internet connectivity for dependency downloads
 
-## Coming Soon
+## Additional Samples
 
-We're actively working on additional Java samples:
+Java quickstart content also includes:
 
-- **Agent Quickstart**: Connect to Azure AI Foundry agents for voice conversations
-- **Function Calling**: Custom tool integration and function calling
-- **Advanced Audio Processing**: Enhanced audio features and customization
+- **Agents New Quickstart**: `voice-live-quickstarts/AgentsNewQuickstart`
+- **Model Quickstart**: `voice-live-quickstarts/ModelQuickstart`
 
 ## Additional Resources
 

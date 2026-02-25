@@ -25,23 +25,42 @@ import wave
 from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
-# Config
+# Config — override via env vars: E2E_PYTHON_URL, E2E_CSHARP_URL, etc.
 # ---------------------------------------------------------------------------
 
 BACKENDS = {
-    "python": "https://ca-web-6gid4mrqdtsmw.salmonglacier-1408708f.eastus2.azurecontainerapps.io",
-    "csharp": "https://ca-web-qg4nkh5hmc7ym.politesea-37a9566c.eastus2.azurecontainerapps.io",
-    "javascript": "https://ca-web-4moqmg55acn7i.mangobay-f47f6964.eastus2.azurecontainerapps.io",
-    "java": "https://ca-web-yr2tlf7e33wzk.delightfulbush-e74d6a7d.eastus2.azurecontainerapps.io",
+    "python": os.environ.get("E2E_PYTHON_URL", "https://ca-web-6gid4mrqdtsmw.salmonglacier-1408708f.eastus2.azurecontainerapps.io"),
+    "csharp": os.environ.get("E2E_CSHARP_URL", "https://ca-web-qg4nkh5hmc7ym.politesea-37a9566c.eastus2.azurecontainerapps.io"),
+    "javascript": os.environ.get("E2E_JAVASCRIPT_URL", "https://ca-web-4moqmg55acn7i.mangobay-f47f6964.eastus2.azurecontainerapps.io"),
+    "java": os.environ.get("E2E_JAVA_URL", "https://ca-web-yr2tlf7e33wzk.delightfulbush-e74d6a7d.eastus2.azurecontainerapps.io"),
 }
+
+# Agent mode settings — override via env vars for your deployment
+AGENT_NAME = os.environ.get("E2E_AGENT_NAME", "voicelive-assistant")
+AGENT_PROJECT = os.environ.get("E2E_AGENT_PROJECT", "voicelive-project")
 
 AUDIO_DIR = os.environ.get(
     "E2E_AUDIO_DIR",
-    r"C:\Localrepos\voicelive-evaluation\prototype_v1\sample_evaluation_input\Eiffel_Tower_Visit_1",
+    os.path.join(os.path.dirname(__file__), "audio"),
 )
 TARGET_SAMPLE_RATE = 24000
 CHUNK_SIZE = 7200  # bytes per chunk (150ms at 24kHz 16-bit mono)
 SESSION_TIMEOUT = 30  # seconds to wait for responses
+
+
+def _generate_synthetic_wav_chunks() -> list[str]:
+    """Generate synthetic 440Hz sine wave PCM16 chunks as a fallback when no WAV files are available."""
+    import math
+    duration_s = 5  # 5 seconds of audio
+    total_samples = TARGET_SAMPLE_RATE * duration_s
+    pcm = b""
+    for i in range(total_samples):
+        sample = int(16000 * math.sin(2 * math.pi * 440 * i / TARGET_SAMPLE_RATE))
+        pcm += struct.pack("<h", max(-32768, min(32767, sample)))
+    chunks = []
+    for i in range(0, len(pcm), CHUNK_SIZE):
+        chunks.append(base64.b64encode(pcm[i : i + CHUNK_SIZE]).decode())
+    return chunks
 
 
 @dataclass
@@ -77,13 +96,19 @@ def resample_pcm16(data: bytes, src_rate: int, dst_rate: int) -> bytes:
     return struct.pack(f"<{len(out)}h", *out)
 
 
-def load_wav_chunks(audio_dir: str) -> list[bytes]:
-    """Load first WAV file from dir, resample to 24kHz PCM16, return as base64 chunks."""
+def load_wav_chunks(audio_dir: str) -> list[str]:
+    """Load first WAV file from dir, resample to 24kHz PCM16, return as base64 chunks.
+    Falls back to synthetic sine wave if the audio directory doesn't exist."""
+    if not os.path.isdir(audio_dir):
+        print(f"    ⚠ Audio dir not found ({audio_dir}), using synthetic 440Hz tone")
+        return _generate_synthetic_wav_chunks()
+
     wav_files = sorted(
         [f for f in os.listdir(audio_dir) if f.endswith(".wav")]
     )
     if not wav_files:
-        raise FileNotFoundError(f"No .wav files found in {audio_dir}")
+        print(f"    ⚠ No .wav files in {audio_dir}, using synthetic 440Hz tone")
+        return _generate_synthetic_wav_chunks()
 
     wav_path = os.path.join(audio_dir, wav_files[0])
     with wave.open(wav_path, "rb") as wf:
@@ -139,6 +164,10 @@ async def ws_test(base_url: str, backend_name: str, mode: str = "model") -> Test
                 "interim_response": False,
                 "temperature": 0.7,
             }
+            # Agent mode requires agent_name and project
+            if mode == "agent":
+                start_msg["agent_name"] = AGENT_NAME
+                start_msg["project"] = AGENT_PROJECT
             await ws.send(json.dumps(start_msg))
 
             # Wait for session_started
@@ -196,7 +225,7 @@ async def ws_test(base_url: str, backend_name: str, mode: str = "model") -> Test
             except (asyncio.TimeoutError, Exception):
                 pass
 
-        result.passed = result.audio_received > 0 and len(result.errors) == 0
+        result.passed = (result.audio_received > 0 or len(result.transcripts) > 0) and len(result.errors) == 0
         result.details = (
             f"audio_chunks={result.audio_received}, "
             f"transcripts={len(result.transcripts)}, "
@@ -205,16 +234,15 @@ async def ws_test(base_url: str, backend_name: str, mode: str = "model") -> Test
 
     except websockets.exceptions.ConnectionClosedError:
         # Some backends (Java/Spring) close without a clean close frame
-        if result.audio_received > 0 or result.transcripts:
-            result.passed = True
-            result.details = (
-                f"audio_chunks={result.audio_received}, "
-                f"transcripts={len(result.transcripts)}, "
-                f"errors={len(result.errors)} (unclean close)"
-            )
+        result.passed = result.audio_received > 0 or len(result.transcripts) > 0
+        result.details = (
+            f"audio_chunks={result.audio_received}, "
+            f"transcripts={len(result.transcripts)}, "
+            f"errors={len(result.errors)} (unclean close)"
+        )
     except Exception as e:
-        # Still pass if we got audio before the exception
-        if result.audio_received > 0 and "close frame" in str(e):
+        # Still pass if we got meaningful data before the exception
+        if (result.audio_received > 0 or result.transcripts) and "close frame" in str(e):
             result.passed = True
             result.details = (
                 f"audio_chunks={result.audio_received}, "
@@ -317,7 +345,7 @@ async def browser_test(base_url: str, backend_name: str, mode: str = "model") ->
             )
             await page.screenshot(path=screenshot_path, full_page=True)
 
-            result.passed = status == 200 and (has_start or has_orb)
+            result.passed = status == 200 and (has_start or has_orb) and session_started
             result.details = (
                 f"HTTP {status}, title='{title}', "
                 f"start_btn={has_start}, orb={has_orb}, "

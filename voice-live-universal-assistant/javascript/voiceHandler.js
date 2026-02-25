@@ -96,6 +96,10 @@ export class VoiceHandler {
     } catch (err) {
       console.error(`[${this.clientId}] Failed to start session:`, err);
       this.sendMessage({ type: "error", message: String(err.message || err) });
+      if (this.session) {
+        try { await this.session.close(); } catch (_) { /* best-effort */ }
+        this.session = null;
+      }
       this.isRunning = false;
     }
   }

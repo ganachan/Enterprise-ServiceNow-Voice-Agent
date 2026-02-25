@@ -270,8 +270,8 @@ public class VoiceLiveHandler {
             options.setInputAudioTranscription(transcription);
         }
 
-        // Interim response configuration — model mode only
-        if ("model".equals(config.getMode()) && config.isInterimResponse()) {
+        // Interim response configuration
+        if (config.isInterimResponse()) {
             java.util.List<InterimResponseTrigger> triggers = new java.util.ArrayList<>();
             if (config.isInterimTriggerLatency()) {
                 triggers.add(InterimResponseTrigger.LATENCY);

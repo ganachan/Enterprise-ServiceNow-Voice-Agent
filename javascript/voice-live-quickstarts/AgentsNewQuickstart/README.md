@@ -42,6 +42,7 @@ This sample demonstrates the **Voice Live + Foundry Agent v2** flow using the Az
    # CONVERSATION_ID=
    # FOUNDRY_RESOURCE_OVERRIDE=
    # AGENT_AUTHENTICATION_IDENTITY_CLIENT_ID=
+   # AUDIO_INPUT_DEVICE=Microphone
    ```
 
 ## Step 1 – Create an agent
@@ -79,7 +80,7 @@ Expected output:
 ```
 🎙️  Basic Foundry Voice Agent with Azure VoiceLive SDK (Agent Mode)
 =================================================================
-Environment variables:
+Configuration:
   VOICELIVE_ENDPOINT: https://...
   ...
 [init] Connecting to VoiceLive with agent "my-voice-agent" for project "..." ...

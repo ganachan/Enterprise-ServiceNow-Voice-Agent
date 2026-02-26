@@ -13,8 +13,9 @@ A Node.js quickstart demonstrating the Voice Live + Foundry Agent v2 flow, inclu
 **Key Features:**
 - Agent creation utility with Voice Live metadata
 - Voice Live session targetting Foundry agents
-- Proactive greeting and barge-in handling
-- Conversation logging
+- Proactive greeting (LLM-generated or pre-defined)
+- Explicit microphone device selection
+- Barge-in handling and conversation logging
 
 ### [Model Quickstart](./voice-live-quickstarts/ModelQuickstart/)
 
@@ -124,7 +125,6 @@ See individual sample READMEs for detailed setup instructions.
 
 - [Azure AI Speech - Voice Live Documentation](https://learn.microsoft.com/azure/ai-services/speech-service/voice-live)
 - [Support Guide](../SUPPORT.md)
-
 ## See Also
 
 - [C# Samples](../csharp/README.md) - .NET implementation

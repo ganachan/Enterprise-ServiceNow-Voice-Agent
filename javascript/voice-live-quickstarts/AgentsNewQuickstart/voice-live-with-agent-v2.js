@@ -480,7 +480,7 @@ class BasicVoiceAssistant {
           content: [
             {
               type: "input_text",
-              text: "Say something to welcome the user. Start the conversation in English.",
+              text: "Say something to welcome the user in English.",
             },
           ],
         });

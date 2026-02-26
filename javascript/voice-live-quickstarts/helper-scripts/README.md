@@ -23,12 +23,6 @@ Validates that all required tools are installed and reports a pass/fail summary.
 powershell -ExecutionPolicy Bypass -File ..\helper-scripts\check-prereqs.ps1
 ```
 
-Or via npm script (if configured in `package.json`):
-
-```bash
-npm run prereq-check
-```
-
 ### `setup-windows-prereqs.ps1`
 
 Automated setup that installs all prerequisites via `winget` and `nvm-windows`.
@@ -50,13 +44,6 @@ powershell -ExecutionPolicy Bypass -File ..\helper-scripts\setup-windows-prereqs
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File ..\helper-scripts\setup-windows-prereqs.ps1 -DryRun
-```
-
-Or via npm scripts:
-
-```bash
-npm run setup:windows
-npm run setup:windows:dry-run
 ```
 
 ## Parameters

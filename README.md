@@ -61,6 +61,7 @@ Python samples showcasing:
 - **Bring-Your-Own-Model (BYOM) Quickstart**: Use your own models hosted in Foundry with proactive greetings
 - **Function Calling**: Advanced tool integration with custom functions and proactive greetings
 - **RAG-enabled Voice Assistant**: Full-stack voice assistant with Azure AI Search integration and `azd` deployment
+- **Voice Live Avatar**: Avatar-enabled voice conversations with server-side SDK and Docker deployment
 - Built with Python 3.8+ and async/await patterns
 
 ### [JavaScript Samples](./javascript/)

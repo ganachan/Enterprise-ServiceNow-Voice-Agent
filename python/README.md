@@ -68,6 +68,21 @@ Demonstrates how to build a real-time voice assistant with Retrieval-Augmented G
 - Azure AI Foundry Agent Service integration
 - Production-ready `azd` deployment to Azure Container Apps
 
+### [Voice Live Avatar](./voice-live-avatar/README.md)
+
+A Dockerized sample demonstrating Azure Voice Live API with avatar integration, with the Voice Live SDK running entirely on the server side (Python/FastAPI) while the browser handles UI, audio capture/playback, and avatar video rendering.
+
+**Key Features:**
+- Avatar-enabled voice conversations with server-side SDK
+- Prebuilt, custom, and photo avatar character support
+- WebRTC and WebSocket avatar output modes
+- Live scene settings adjustment for photo avatars
+- Proactive greeting and barge-in support
+- Barge-in support for natural conversation interruption
+- Docker-based deployment
+- Azure Container Apps deployment guide
+- Developer mode for debugging
+
 ## Prerequisites
 
 All samples require:

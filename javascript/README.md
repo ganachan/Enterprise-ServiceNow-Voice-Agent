@@ -51,13 +51,16 @@ A Dockerized sample demonstrating Azure Voice Live API with avatar integration, 
 
 **Key Features:**
 - Avatar-enabled voice conversations
-- Prebuilt and custom avatar character support
-- Photo avatar option
+- Prebuilt, custom, and photo avatar character support
+- WebRTC and WebSocket avatar output modes
+- Live scene settings adjustment for photo avatars
 - Proactive greeting support
 - Barge-in support for natural conversation interruption
 - Docker-based deployment
 - Azure Container Apps deployment guide
 - Developer mode for debugging
+
+> Also available in [Python](../python/voice-live-avatar/README.md) with a server-side SDK architecture (FastAPI backend).
 
 ### [Voice Live Car Demo](./voice-live-car-demo/)
 

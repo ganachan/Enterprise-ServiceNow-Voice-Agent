@@ -9,7 +9,10 @@ import json
 import logging
 import base64
 import os
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cosmos_store import CosmosConversationStore
 
 from azure.ai.voicelive.aio import connect
 from azure.ai.voicelive.models import (
@@ -52,12 +55,14 @@ class VoiceSessionHandler:
         credential: Any,
         send_message: Callable,
         config: dict,
+        cosmos_store: Optional["CosmosConversationStore"] = None,
     ):
         self.client_id = client_id
         self.endpoint = endpoint
         self.credential = credential
         self.send_message = send_message
         self.config = config
+        self.cosmos_store = cosmos_store
 
         self.connection = None
         self.is_running = False
@@ -71,7 +76,6 @@ class VoiceSessionHandler:
             model = self.config.get("model", os.getenv("VOICELIVE_MODEL", "gpt-4o-realtime"))
             mode = self.config.get("mode", "model")
 
-            # Build connection model string based on mode
             if mode == "agent":
                 agent_id = self.config.get("agentId", "")
                 project_name = self.config.get("agentProjectName", "")
@@ -91,21 +95,14 @@ class VoiceSessionHandler:
                 model=session_model,
             ) as connection:
                 self.connection = connection
-
-                # Configure session
                 await self._setup_session(connection)
-
-                # Process events
                 await self._process_events(connection)
 
         except asyncio.CancelledError:
             logger.info(f"Session cancelled for client {self.client_id}")
         except Exception as e:
             logger.error(f"Voice session error for {self.client_id}: {e}")
-            await self.send_message({
-                "type": "session_error",
-                "error": str(e),
-            })
+            await self.send_message({"type": "session_error", "error": str(e)})
         finally:
             self.is_running = False
             self.connection = None
@@ -116,19 +113,11 @@ class VoiceSessionHandler:
         mode = config.get("mode", "model")
         model = config.get("model", "gpt-4o-realtime")
 
-        # Build voice configuration
         voice_config = self._build_voice_config(config)
-
-        # Build avatar configuration
         avatar_config = self._build_avatar_config(config)
-
-        # Build turn detection
         turn_detection = self._build_turn_detection(config)
-
-        # Build modalities (avatar is NOT a modality - it's configured via the avatar field)
         modalities = [Modality.TEXT, Modality.AUDIO]
 
-        # Build SR options
         sr_model = config.get("srModel", "azure-speech")
         recognition_language = config.get("recognitionLanguage", "auto")
         is_realtime = model and "realtime" in model
@@ -138,10 +127,19 @@ class VoiceSessionHandler:
             else recognition_language,
         )
 
-        # Build tools list
-        tools = config.get("tools", [])
+        # Clean tools from frontend: remove null/empty parameters the SDK can't serialize
+        raw_tools = config.get("tools", [])
+        tools = []
+        for t in raw_tools:
+            if not isinstance(t, dict):
+                continue
+            clean = {k: v for k, v in t.items() if v is not None}
+            # Remove parameters if null or empty - SDK doesn't accept null parameters
+            if clean.get("parameters") is None:
+                clean.pop("parameters", None)
+            tools.append(clean)
+        logger.info(f"[TOOLS] {len(tools)} tools configured: {[t.get('name') for t in tools]}")
 
-        # Build noise/echo settings
         noise_reduction = None
         echo_cancellation = None
         if config.get("useNS", False):
@@ -171,7 +169,6 @@ class VoiceSessionHandler:
         logger.info(f"[SEND] session.update: {session_config}")
         await connection.session.update(session=session_config)
 
-        # Wait for SESSION_UPDATED
         session_updated = await self._wait_for_event(
             connection, {ServerEventType.SESSION_UPDATED}
         )
@@ -182,7 +179,6 @@ class VoiceSessionHandler:
 
         avatar_output_mode = config.get("avatarOutputMode", "webrtc")
 
-        # If avatar is enabled with WebRTC mode, relay ICE servers info to browser
         if config.get("avatarEnabled", False) and avatar_output_mode == "webrtc":
             if hasattr(session_updated, "session") and session_updated.session:
                 session_data = session_updated.session
@@ -197,20 +193,14 @@ class VoiceSessionHandler:
                             if server.credential:
                                 ice_server["credential"] = server.credential
                             ice_servers.append(ice_server)
-
-                        await self.send_message({
-                            "type": "ice_servers",
-                            "iceServers": ice_servers,
-                        })
+                        await self.send_message({"type": "ice_servers", "iceServers": ice_servers})
                         logger.info(f"Sent ICE servers to client {self.client_id}")
 
-        # Extract session ID if available
         session_id = None
         if hasattr(session_updated, "session") and session_updated.session:
             session_id = getattr(session_updated.session, "id", None)
         logger.info(f"Session ID: {session_id}")
 
-        # Notify client session is ready
         await self.send_message({
             "type": "session_started",
             "status": "success",
@@ -222,29 +212,21 @@ class VoiceSessionHandler:
             },
         })
 
-        # Proactive greeting logic depends on avatar mode:
-        # - No avatar: send immediately
-        # - Avatar + websocket: send immediately (no WebRTC handshake needed)
-        # - Avatar + webrtc: defer until SESSION_AVATAR_CONNECTING event
         if not config.get("avatarEnabled", False):
             if config.get("enableProactive", True):
                 try:
                     logger.info("[SEND] response.create (proactive greeting, no avatar)")
                     await connection.response.create()
-                    logger.info("Proactive greeting sent")
                 except Exception as e:
                     logger.error(f"Failed to send proactive greeting: {e}")
         elif avatar_output_mode == "websocket":
-            # WebSocket avatar mode: no WebRTC handshake, send greeting immediately
             if config.get("enableProactive", True):
                 try:
                     logger.info("[SEND] response.create (proactive greeting, websocket avatar)")
                     await connection.response.create()
-                    logger.info("Proactive greeting sent (websocket avatar)")
                 except Exception as e:
                     logger.error(f"Failed to send proactive greeting: {e}")
         else:
-            # WebRTC avatar: defer proactive greeting until avatar connect
             self._pending_proactive = config.get("enableProactive", True)
 
     def _build_voice_config(self, config: dict):
@@ -255,25 +237,19 @@ class VoiceSessionHandler:
         voice_speed = config.get("voiceSpeed", 1.0)
 
         if voice_type == "custom":
-            custom_voice_name = config.get("customVoiceName", "")
-            deployment_id = config.get("voiceDeploymentId", "")
             return AzureCustomVoice(
-                name=custom_voice_name,
-                endpoint_id=deployment_id,
+                name=config.get("customVoiceName", ""),
+                endpoint_id=config.get("voiceDeploymentId", ""),
                 rate=str(voice_speed),
             )
         elif voice_type == "personal":
-            personal_voice_name = config.get("personalVoiceName", "")
-            personal_model = config.get("personalVoiceModel", "DragonLatestNeural")
             return AzurePersonalVoice(
-                name=personal_voice_name,
-                model=personal_model,
+                name=config.get("personalVoiceName", ""),
+                model=config.get("personalVoiceModel", "DragonLatestNeural"),
                 temperature=voice_temperature,
             )
         else:
-            # Standard voice - check if Azure or OpenAI
             if "-" in voice_name:
-                # Azure voice
                 is_dragon = "Dragon" in voice_name
                 return AzureStandardVoice(
                     name=voice_name,
@@ -281,7 +257,6 @@ class VoiceSessionHandler:
                     rate=str(voice_speed),
                 )
             else:
-                # OpenAI voice
                 return OpenAIVoice(name=voice_name)
 
     def _build_avatar_config(self, config: dict) -> Optional[AvatarConfig]:
@@ -294,7 +269,6 @@ class VoiceSessionHandler:
         is_custom = config.get("isCustomAvatar", False)
         background_url = config.get("avatarBackgroundImageUrl", "")
 
-        # Parse character and style from avatar name
         if is_custom:
             character = avatar_name
             style = None
@@ -308,36 +282,22 @@ class VoiceSessionHandler:
             character = parts[0].lower() if parts else avatar_name.lower()
             style = parts[1] if len(parts) > 1 else None
 
-        # Build video params
         video_crop = None
         if not is_photo:
-            # Centered crop matching JS sample: 800px wide centered in 1920
             video_crop = VideoCrop(top_left=[560, 0], bottom_right=[1360, 1080])
 
         background = None
         if background_url:
             background = Background(image_url=background_url)
 
-        video = VideoParams(
-            codec="h264",
-            crop=video_crop,
-            background=background,
-        )
+        video = VideoParams(codec="h264", crop=video_crop, background=background)
 
-        # Build avatar config kwargs
-        avatar_kwargs = {
-            "character": character,
-            "style": style,
-            "video": video,
-        }
-
-        # Only set customized=True when actually custom (omit when False)
+        avatar_kwargs = {"character": character, "style": style, "video": video}
         if is_custom:
             avatar_kwargs["customized"] = True
 
         avatar_cfg = AvatarConfig(**avatar_kwargs)
 
-        # Photo avatar: add type, model, and scene via bracket notation (not in SDK model)
         if is_photo:
             avatar_cfg["type"] = "photo-avatar"
             avatar_cfg["model"] = "vasa-1"
@@ -354,7 +314,6 @@ class VoiceSessionHandler:
                     "amplitude": photo_scene.get("amplitude", 100) / 100,
                 }
 
-        # Add output_protocol (not in SDK model, inject as additional property)
         avatar_output_mode = config.get("avatarOutputMode", "webrtc")
         try:
             avatar_cfg["output_protocol"] = avatar_output_mode
@@ -376,8 +335,7 @@ class VoiceSessionHandler:
             eou_detection = None
             if eou_type == "semantic_detection_v1":
                 eou_detection = AzureSemanticDetection(
-                    threshold_level="default",
-                    timeout_ms=1000,
+                    threshold_level="default", timeout_ms=1000
                 )
             return AzureSemanticVad(
                 threshold=0.3,
@@ -389,29 +347,19 @@ class VoiceSessionHandler:
                 end_of_utterance_detection=eou_detection,
             )
         else:
-            return ServerVad(
-                threshold=0.3,
-                prefix_padding_ms=300,
-                silence_duration_ms=500,
-            )
+            return ServerVad(threshold=0.3, prefix_padding_ms=300, silence_duration_ms=500)
 
     async def _process_events(self, connection):
-        """Process incoming events from Voice Live API.
-        
-        Uses manual recv() loop instead of 'async for' so that individual
-        event parsing/handling errors don't kill the entire event loop.
-        """
+        """Process incoming events from Voice Live API."""
         while self.is_running:
             try:
                 event = await connection.recv()
             except (ConnectionError, OSError) as e:
-                # Parsing error from SDK — log details and continue listening
                 logger.warning(f"[RECV] Event parsing error (continuing): {type(e).__name__}: {e}")
                 continue
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                # Connection closed or fatal error
                 logger.error(f"Connection error in event loop: {e}")
                 break
 
@@ -431,132 +379,119 @@ class VoiceSessionHandler:
                 raise
             except Exception as e:
                 logger.error(f"Error handling event {getattr(event, 'type', 'unknown')}: {e}", exc_info=True)
-                # Continue processing — don't let one bad event kill the loop
 
     async def _handle_event(self, event, connection):
         """Handle individual events from Voice Live API."""
         try:
             event_type = event.type
 
-            # Audio delta - relay to browser
             if event_type == ServerEventType.RESPONSE_AUDIO_DELTA:
                 if hasattr(event, "delta") and event.delta:
                     audio_b64 = base64.b64encode(event.delta).decode("utf-8")
                     await self.send_message({
-                        "type": "audio_data",
-                        "data": audio_b64,
-                        "format": "pcm16",
-                        "sampleRate": 24000,
+                        "type": "audio_data", "data": audio_b64,
+                        "format": "pcm16", "sampleRate": 24000,
                     })
 
             elif event_type == ServerEventType.RESPONSE_AUDIO_DONE:
                 await self.send_message({"type": "audio_done"})
 
-            # Audio transcript (assistant speaking text)
             elif event_type == ServerEventType.RESPONSE_AUDIO_TRANSCRIPT_DELTA:
                 if hasattr(event, "delta") and event.delta:
-                    await self.send_message({
-                        "type": "transcript_delta",
-                        "role": "assistant",
-                        "delta": event.delta,
-                    })
+                    await self.send_message({"type": "transcript_delta", "role": "assistant", "delta": event.delta})
 
             elif event_type == ServerEventType.RESPONSE_AUDIO_TRANSCRIPT_DONE:
                 transcript = getattr(event, "transcript", "")
                 await self.send_message({
-                    "type": "transcript_done",
-                    "role": "assistant",
+                    "type": "transcript_done", "role": "assistant",
                     "transcript": transcript,
                 })
+                if self.cosmos_store and transcript:
+                    asyncio.ensure_future(
+                        self.cosmos_store.save_turn(
+                            session_id=self.client_id,
+                            role="assistant",
+                            content=transcript,
+                            avatar=self.config.get("avatarName") or self.config.get("photoAvatarName") or "default",
+                            turn_type="audio_transcript",
+                        )
+                    )
 
-            # Text delta (for text responses)
             elif event_type == ServerEventType.RESPONSE_TEXT_DELTA:
                 if hasattr(event, "delta") and event.delta:
-                    await self.send_message({
-                        "type": "text_delta",
-                        "delta": event.delta,
-                    })
+                    await self.send_message({"type": "text_delta", "delta": event.delta})
 
             elif event_type == ServerEventType.RESPONSE_TEXT_DONE:
                 text = getattr(event, "text", "")
-                await self.send_message({
-                    "type": "text_done",
-                    "text": text,
-                })
+                await self.send_message({"type": "text_done", "text": text})
+                if self.cosmos_store and text:
+                    asyncio.ensure_future(
+                        self.cosmos_store.save_turn(
+                            session_id=self.client_id,
+                            role="assistant",
+                            content=text,
+                            avatar=self.config.get("avatarName") or self.config.get("photoAvatarName") or "default",
+                            turn_type="text",
+                        )
+                    )
 
-            # Response lifecycle
             elif event_type == ServerEventType.RESPONSE_CREATED:
                 response_id = getattr(event, "response", None)
                 rid = response_id.id if response_id and hasattr(response_id, "id") else ""
-                await self.send_message({
-                    "type": "response_created",
-                    "responseId": rid,
-                })
+                await self.send_message({"type": "response_created", "responseId": rid})
 
             elif event_type == ServerEventType.RESPONSE_DONE:
                 await self.send_message({"type": "response_done"})
 
-            # Speech detection
             elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
                 item_id = getattr(event, "item_id", "") or getattr(event, "itemId", "")
-                await self.send_message({
-                    "type": "speech_started",
-                    "itemId": item_id,
-                })
+                await self.send_message({"type": "speech_started", "itemId": item_id})
 
             elif event_type == ServerEventType.INPUT_AUDIO_BUFFER_SPEECH_STOPPED:
-                await self.send_message({
-                    "type": "speech_stopped",
-                })
+                await self.send_message({"type": "speech_stopped"})
 
-            # User transcription
             elif event_type == ServerEventType.CONVERSATION_ITEM_INPUT_AUDIO_TRANSCRIPTION_COMPLETED:
                 transcript = getattr(event, "transcript", "")
                 item_id = getattr(event, "item_id", "") or getattr(event, "itemId", "")
                 if transcript:
                     await self.send_message({
-                        "type": "transcript_done",
-                        "role": "user",
-                        "transcript": transcript,
-                        "itemId": item_id,
+                        "type": "transcript_done", "role": "user",
+                        "transcript": transcript, "itemId": item_id,
                     })
+                    if self.cosmos_store:
+                        asyncio.ensure_future(
+                            self.cosmos_store.save_turn(
+                                session_id=self.client_id,
+                                role="user",
+                                content=transcript,
+                                avatar=self.config.get("avatarName") or self.config.get("photoAvatarName") or "default",
+                                turn_type="audio_transcript",
+                                item_id=item_id,
+                            )
+                        )
 
-            # Avatar WebRTC signaling
             elif event_type == ServerEventType.SESSION_AVATAR_CONNECTING:
                 server_sdp = getattr(event, "server_sdp", "")
                 if server_sdp:
-                    await self.send_message({
-                        "type": "avatar_sdp_answer",
-                        "serverSdp": server_sdp,
-                    })
+                    await self.send_message({"type": "avatar_sdp_answer", "serverSdp": server_sdp})
                     logger.info("Relayed avatar SDP answer to browser")
-
-                    # Avatar connection succeeded — now send proactive greeting if pending
                     if getattr(self, "_pending_proactive", False):
                         self._pending_proactive = False
                         try:
                             logger.info("[SEND] response.create (proactive greeting, after avatar connect)")
                             await connection.response.create()
-                            logger.info("Proactive greeting sent after avatar connect")
                         except Exception as e:
                             logger.error(f"Failed to send proactive greeting: {e}")
 
-            # Function calls
             elif event_type == ServerEventType.CONVERSATION_ITEM_CREATED:
                 await self._handle_conversation_item(event, connection)
 
-            # Errors
             elif event_type == ServerEventType.ERROR:
                 error_msg = str(event)
                 logger.error(f"Voice Live error: {error_msg}")
-                await self.send_message({
-                    "type": "error",
-                    "error": error_msg,
-                })
+                await self.send_message({"type": "error", "error": error_msg})
 
-            # Session updated (may contain additional info)
             elif event_type == ServerEventType.SESSION_UPDATED:
-                # Log the session state so we can diagnose config resets
                 if hasattr(event, 'session') and event.session:
                     s = event.session
                     logger.info(f"[SESSION_UPDATED] input_audio_format={getattr(s, 'input_audio_format', '?')}, "
@@ -564,18 +499,13 @@ class VoiceSessionHandler:
                                 f"turn_detection type={getattr(getattr(s, 'turn_detection', None), 'type', '?')}, "
                                 f"avatar={getattr(s, 'avatar', '?')}")
 
-            # Avatar video via WebSocket mode (response.video.delta)
-            # SDK parses this as a generic ServerEvent with string type
             elif event_type == "response.video.delta":
                 delta = event.get("delta", "")
                 if delta:
                     self._video_sent_count = getattr(self, '_video_sent_count', 0) + 1
                     if self._video_sent_count <= 5 or self._video_sent_count % 100 == 0:
                         logger.info(f"[SEND] video_data #{self._video_sent_count}, delta_len={len(delta)}")
-                    await self.send_message({
-                        "type": "video_data",
-                        "delta": delta,
-                    })
+                    await self.send_message({"type": "video_data", "delta": delta})
 
         except Exception as e:
             logger.error(f"Error handling event {getattr(event, 'type', 'unknown')}: {e}")
@@ -584,7 +514,6 @@ class VoiceSessionHandler:
         """Handle function call events."""
         if not hasattr(event, "item"):
             return
-
         item = event.item
         if not (hasattr(item, "type") and item.type == ItemType.FUNCTION_CALL and hasattr(item, "call_id")):
             return
@@ -601,7 +530,6 @@ class VoiceSessionHandler:
         })
 
         try:
-            # Wait for arguments
             args_done = await self._wait_for_event(
                 connection, {ServerEventType.RESPONSE_FUNCTION_CALL_ARGUMENTS_DONE}
             )
@@ -612,10 +540,8 @@ class VoiceSessionHandler:
             arguments = args_done.arguments
             logger.info(f"Function args: {arguments}")
 
-            # Wait for response done
             await self._wait_for_event(connection, {ServerEventType.RESPONSE_DONE})
 
-            # Execute built-in functions
             result = await self._execute_function(function_name, arguments)
 
             await self.send_message({
@@ -625,10 +551,7 @@ class VoiceSessionHandler:
                 "result": result,
             })
 
-            # Send result back
-            function_output = FunctionCallOutputItem(
-                call_id=call_id, output=json.dumps(result)
-            )
+            function_output = FunctionCallOutputItem(call_id=call_id, output=json.dumps(result))
             await connection.conversation.item.create(
                 previous_item_id=previous_item_id, item=function_output
             )
@@ -644,18 +567,90 @@ class VoiceSessionHandler:
             })
 
     async def _execute_function(self, name: str, arguments: str) -> dict:
-        """Execute a built-in function and return result."""
+        """Execute a ServiceNow or built-in function and return result."""
+        import aiohttp
+        import urllib.parse
+
         try:
             args = json.loads(arguments) if arguments else {}
         except json.JSONDecodeError:
             args = {}
 
-        if name == "get_time":
+        SNOW_BASE = self.config.get(
+            "snowApiBase",
+            "https://snow-mcp-server.braveglacier-396ec991.westus2.azurecontainerapps.io"
+        )
+
+        async def snow_get(path: str) -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{SNOW_BASE}{path}") as resp:
+                    return await resp.json()
+
+        async def snow_post(path: str, body: dict) -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{SNOW_BASE}{path}", json=body) as resp:
+                    return await resp.json()
+
+        async def snow_patch(path: str, body: dict) -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.patch(f"{SNOW_BASE}{path}", json=body) as resp:
+                    return await resp.json()
+
+        # ── ServiceNow ────────────────────────────────────────────────────
+        if name == "nowtest":
+            return await snow_get("/nowtest")
+
+        elif name == "listIncidents":
+            params = []
+            if args.get("state"):    params.append(f"state={args['state']}")
+            if args.get("priority"): params.append(f"priority={args['priority']}")
+            if args.get("limit"):    params.append(f"limit={args['limit']}")
+            qs = ("?" + "&".join(params)) if params else ""
+            return await snow_get(f"/incidents{qs}")
+
+        elif name == "getIncident":
+            return await snow_get(f"/incidents/{args.get('incidentNumber', '')}")
+
+        elif name == "createIncident":
+            return await snow_post("/incidents", args)
+
+        elif name == "updateIncident":
+            num = args.pop("incidentNumber", "")
+            return await snow_patch(f"/incidents/{num}", args)
+
+        elif name == "resolveIncident":
+            num = args.get("incidentNumber", "")
+            return await snow_post(f"/incidents/{num}/resolve",
+                                   {"resolution_notes": args.get("resolution_notes", "")})
+
+        elif name == "addCommentToIncident":
+            num = args.get("incidentNumber", "")
+            return await snow_post(f"/incidents/{num}/comment",
+                                   {"comment": args.get("comment", "")})
+
+        elif name == "similarincidentsfortext":
+            encoded = urllib.parse.quote(args.get("inputText", ""))
+            return await snow_get(f"/incidents/search?inputText={encoded}")
+
+        elif name == "getUser":
+            return await snow_get(f"/users/{args.get('username', '')}")
+
+        elif name == "listUsers":
+            return await snow_get(f"/users?limit={args.get('limit', 10)}")
+
+        elif name == "getCMDBItem":
+            encoded = urllib.parse.quote(args.get("name", ""))
+            return await snow_get(f"/cmdb/{encoded}")
+
+        # ── Legacy built-ins ──────────────────────────────────────────────
+        elif name == "get_time":
             from datetime import datetime
             return {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
         elif name == "get_weather":
             location = args.get("location", "unknown")
             return {"location": location, "temperature": "72°F", "condition": "Sunny"}
+
         elif name == "calculate":
             expression = args.get("expression", "")
             try:
@@ -663,6 +658,7 @@ class VoiceSessionHandler:
                 return {"expression": expression, "result": str(result)}
             except Exception:
                 return {"expression": expression, "error": "Could not evaluate"}
+
         else:
             return {"error": f"Unknown function: {name}"}
 
@@ -673,10 +669,10 @@ class VoiceSessionHandler:
         if not self.connection:
             self._audio_chunk_count += 1
             if self._audio_chunk_count == 1 or self._audio_chunk_count % 500 == 0:
-                logger.warning(f"[AUDIO] No connection — dropping audio chunk #{self._audio_chunk_count} (connection lost)")
+                logger.warning(f"[AUDIO] No connection — dropping chunk #{self._audio_chunk_count}")
             return
         if not self.is_running:
-            logger.warning(f"[AUDIO] Session not running — dropping audio chunk")
+            logger.warning("[AUDIO] Session not running — dropping audio chunk")
             return
         try:
             self._audio_chunk_count += 1
@@ -690,15 +686,21 @@ class VoiceSessionHandler:
         """Send a text message to the conversation."""
         if self.connection:
             try:
-                from azure.ai.voicelive.models import (
-                    UserMessageItem,
-                    InputTextContentPart,
-                )
-                item = UserMessageItem(
-                    content=[InputTextContentPart(text=text)]
-                )
+                from azure.ai.voicelive.models import UserMessageItem, InputTextContentPart
+                item = UserMessageItem(content=[InputTextContentPart(text=text)])
                 await self.connection.conversation.item.create(item=item)
                 await self.connection.response.create()
+                # Persist user text turn
+                if self.cosmos_store and text:
+                    asyncio.ensure_future(
+                        self.cosmos_store.save_turn(
+                            session_id=self.client_id,
+                            role="user",
+                            content=text,
+                            avatar=self.config.get("avatarName") or self.config.get("photoAvatarName") or "default",
+                            turn_type="text",
+                        )
+                    )
             except Exception as e:
                 logger.error(f"Error sending text: {e}")
 
@@ -706,14 +708,10 @@ class VoiceSessionHandler:
         """Forward the browser's SDP offer to Voice Live for avatar WebRTC."""
         if self.connection:
             try:
-                # Log diagnostic info about the SDP format
                 sdp_preview = client_sdp[:60] if client_sdp else '(empty)'
                 logger.info(f"[SDP-CHECK] client_sdp starts with: {sdp_preview}")
                 logger.info(f"[SDP-CHECK] client_sdp length: {len(client_sdp)}")
-
-                avatar_connect = ClientEventSessionAvatarConnect(
-                    client_sdp=client_sdp,
-                )
+                avatar_connect = ClientEventSessionAvatarConnect(client_sdp=client_sdp)
                 serialized = avatar_connect.as_dict() if hasattr(avatar_connect, 'as_dict') else str(avatar_connect)
                 logger.info(f"[SEND] session.avatar.connect: {serialized}")
                 await self.connection.send(avatar_connect)
@@ -726,42 +724,26 @@ class VoiceSessionHandler:
         if self.connection:
             try:
                 await self.connection.response.cancel()
-                await self.send_message({
-                    "type": "stop_playback",
-                    "reason": "manual_interrupt",
-                })
+                await self.send_message({"type": "stop_playback", "reason": "manual_interrupt"})
             except Exception as e:
                 logger.error(f"Error interrupting: {e}")
 
     async def update_avatar_scene(self, avatar_data: dict):
-        """Send a raw session.update with avatar scene config.
-        
-        Bypasses SDK serialization completely by writing raw JSON directly
-        to the underlying websocket, matching the JS sample's sendRawEvent approach.
-        
-        Includes input/output audio format and turn detection in the update
-        to prevent the server from resetting those fields to defaults.
-        """
+        """Send a raw session.update with avatar scene config."""
         if self.connection:
             try:
-                # Build session payload with avatar + preserved audio config
                 session_payload = {
                     "avatar": avatar_data,
                     "input_audio_format": "pcm16",
                     "output_audio_format": "pcm16",
                 }
-
-                # Preserve turn detection config
                 td = self._build_turn_detection(self.config)
                 if hasattr(td, 'as_dict'):
                     session_payload["turn_detection"] = td.as_dict()
                 elif hasattr(td, '__dict__'):
                     session_payload["turn_detection"] = {k: v for k, v in td.__dict__.items() if not k.startswith('_')}
 
-                raw_event = {
-                    "type": "session.update",
-                    "session": session_payload,
-                }
+                raw_event = {"type": "session.update", "session": session_payload}
                 raw_json = json.dumps(raw_event)
                 logger.info(f"[SEND] raw session.update (scene): {raw_json}")
                 await self.connection._connection.send_str(raw_json)
@@ -783,10 +765,8 @@ class VoiceSessionHandler:
                     logger.info(f"[RECV-WAIT] {etype}: {event}")
                 if event.type in wanted_types:
                     return event
-                # Continue handling other events while waiting
                 await self._handle_event(event, connection)
             return None
-
         try:
             return await asyncio.wait_for(_next(), timeout=timeout_s)
         except asyncio.TimeoutError:

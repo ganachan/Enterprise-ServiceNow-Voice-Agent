@@ -8,17 +8,19 @@ import asyncio
 import json
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
-from typing import Dict
+from typing import Dict, Optional
 
 import uvicorn
 from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from cosmos_store import CosmosConversationStore, create_store_from_env
 from voice_handler import VoiceSessionHandler
 
 load_dotenv()
@@ -61,10 +63,15 @@ logger = logging.getLogger(__name__)
 active_sessions: Dict[str, VoiceSessionHandler] = {}
 active_tasks: Dict[str, asyncio.Task] = {}
 
+# Cosmos DB store — shared singleton (None if COSMOS_ENDPOINT not configured)
+cosmos_store: Optional[CosmosConversationStore] = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global cosmos_store
     logger.info("Voice Live Avatar server starting...")
+    cosmos_store = create_store_from_env()
     yield
     # Cleanup all sessions on shutdown
     for client_id in list(active_sessions.keys()):
@@ -73,6 +80,8 @@ async def lifespan(app: FastAPI):
             await handler.stop()
     active_sessions.clear()
     active_tasks.clear()
+    if cosmos_store:
+        await cosmos_store.close()
     logger.info("Voice Live Avatar server stopped.")
 
 
@@ -236,6 +245,7 @@ async def start_session(client_id: str, config: dict, websocket: WebSocket):
         credential=credential,
         send_message=send_message,
         config=config,
+        cosmos_store=cosmos_store,
     )
     active_sessions[client_id] = handler
 
@@ -271,6 +281,107 @@ async def send_ws_message(websocket: WebSocket, message: dict):
         await websocket.send_text(json.dumps(message))
     except Exception as e:
         logger.error(f"Error sending WebSocket message: {e}")
+
+
+# ===== App Password =====
+_APP_PASSWORD = "ai-gbb-2026"
+_valid_tokens: set = set()
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    """Validate the app password. Returns a session token on success."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "message": "Invalid request body."}, status_code=400)
+    password = body.get("password", "")
+    if not secrets.compare_digest(password, _APP_PASSWORD):
+        return JSONResponse({"ok": False, "message": "Incorrect password."}, status_code=401)
+    token = secrets.token_hex(32)
+    _valid_tokens.add(token)
+    return {"ok": True, "token": token}
+
+
+@app.get("/api/auth/verify")
+async def auth_verify(request: Request):
+    """Check whether a session token is still valid."""
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip()
+    if token and token in _valid_tokens:
+        return {"ok": True}
+    return JSONResponse({"ok": False}, status_code=401)
+
+
+# ===== ServiceNow Wakeup Endpoint =====
+# Credentials are hardcoded server-side and never exposed to the browser.
+_SNOW_INSTANCE = "https://dev199303.service-now.com"
+_SNOW_USER = "Admin"
+_SNOW_PASSWORD = "pU%8qf9!WmLN"
+
+
+@app.get("/api/snow/wakeup")
+async def snow_wakeup():
+    """Wake up the ServiceNow developer instance using server-side credentials.
+    Credentials are never sent to or visible in the browser.
+    """
+    import aiohttp
+
+    try:
+        auth = aiohttp.BasicAuth(_SNOW_USER, _SNOW_PASSWORD)
+        async with aiohttp.ClientSession() as session:
+            url = f"{_SNOW_INSTANCE}/api/now/table/sys_user?sysparm_limit=1&sysparm_fields=user_name"
+            async with session.get(url, auth=auth, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status == 200:
+                    return {"status": "online", "message": "ServiceNow instance is awake and ready."}
+                elif resp.status == 401:
+                    return {"status": "error", "message": "Authentication failed."}
+                else:
+                    return {"status": "error", "message": f"Instance returned HTTP {resp.status}."}
+    except Exception as e:
+        logger.error(f"ServiceNow wakeup error: {e}")
+        return {"status": "error", "message": "Could not reach ServiceNow instance. It may still be starting up."}
+
+
+@app.get("/api/snow/incidents")
+async def snow_incidents(limit: int = 20):
+    """Fetch recent incidents from ServiceNow using server-side credentials.
+    Returns sanitized incident data — no credentials are exposed to the browser.
+    """
+    import aiohttp
+
+    try:
+        auth = aiohttp.BasicAuth(_SNOW_USER, _SNOW_PASSWORD)
+        async with aiohttp.ClientSession() as session:
+            url = (
+                f"{_SNOW_INSTANCE}/api/now/table/incident"
+                f"?sysparm_limit={limit}"
+                f"&sysparm_fields=number,short_description,state,priority,assigned_to,sys_created_on"
+                f"&sysparm_query=ORDERBYDESCsys_created_on"
+            )
+            async with session.get(url, auth=auth, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    incidents = [
+                        {
+                            "number": r.get("number", ""),
+                            "short_description": r.get("short_description", ""),
+                            "state": r.get("state", ""),
+                            "priority": r.get("priority", ""),
+                            "assigned_to": r.get("assigned_to", {}).get("display_value", "") if isinstance(r.get("assigned_to"), dict) else r.get("assigned_to", ""),
+                            "created": r.get("sys_created_on", ""),
+                            "link": f"{_SNOW_INSTANCE}/incident.do?sysparm_query=number={r.get('number','')}",
+                        }
+                        for r in data.get("result", [])
+                    ]
+                    return {"status": "ok", "incidents": incidents}
+                elif resp.status == 401:
+                    return {"status": "error", "message": "Authentication failed."}
+                else:
+                    return {"status": "error", "message": f"ServiceNow returned HTTP {resp.status}."}
+    except Exception as e:
+        logger.error(f"ServiceNow incidents error: {e}")
+        return {"status": "error", "message": "Could not fetch incidents. Instance may be hibernating."}
 
 
 # Mount static files (frontend)

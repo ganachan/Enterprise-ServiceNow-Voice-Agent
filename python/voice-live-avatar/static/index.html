@@ -3,78 +3,100 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Voice Live Avatar</title>
+    <title>ServiceNow AI ITSM Voice Agent</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+    <!-- ===== Login Overlay ===== -->
+    <div id="loginOverlay" style="
+        display:flex; position:fixed; inset:0; z-index:9999;
+        background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+        align-items:center; justify-content:center;
+    ">
+        <div style="
+            background:#fff; border-radius:12px; padding:40px 36px;
+            width:100%; max-width:360px; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+            text-align:center;
+        ">
+            <!-- Logo -->
+            <div style="margin-bottom:20px;">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" style="display:inline-block;">
+                    <rect width="24" height="24" rx="6" fill="#1d4ed8"/>
+                    <path d="M12 4L4 8l8 4 8-4-8-4z" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M4 16l8 4 8-4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M4 12l8 4 8-4" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div style="font-size:18px;font-weight:700;color:#0f172a;margin-bottom:4px;">ITSM AI Voice Agent</div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:28px;">Powered by Azure AI &amp; ServiceNow</div>
+
+            <div style="margin-bottom:16px;text-align:left;">
+                <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Access Password</label>
+                <input id="loginPassword" type="password" placeholder="Enter password"
+                    onkeydown="if(event.key==='Enter')loginApp()"
+                    style="
+                        width:100%; box-sizing:border-box;
+                        padding:10px 12px; font-size:14px;
+                        border:1.5px solid #d1d5db; border-radius:7px;
+                        outline:none; transition:border-color 0.2s;
+                    "
+                    onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#d1d5db'"
+                />
+            </div>
+            <div id="loginError" style="font-size:12px;color:#dc2626;min-height:18px;margin-bottom:10px;"></div>
+            <button onclick="loginApp()" id="loginBtn" style="
+                width:100%; padding:11px; font-size:14px; font-weight:700;
+                background:#1d4ed8; color:#fff; border:none; border-radius:7px;
+                cursor:pointer; transition:background 0.2s;
+            " onmouseover="this.style.background='#1e40af'" onmouseout="this.style.background='#1d4ed8'">
+                Sign In
+            </button>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Left sidebar: Settings -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-scroll">
 
-
-                <!-- Instructions -->
-                <details class="settings-group">
-                    <summary>Instructions</summary>
-                    <div class="settings-content">
-                        <div class="instructions-box">
-                            <p><strong>Quick Start</strong></p>
-                            <ol>
-                                <li>Enter your Azure AI Services <strong>Endpoint</strong> and <strong>Subscription Key</strong> (or Entra Token for agent modes).</li>
-                                <li>Select a <strong>Model</strong> or configure an <strong>Agent</strong>.</li>
-                                <li>Optionally enable <strong>Noise Suppression</strong> and <strong>Echo Cancellation</strong>.</li>
-                                <li>Choose a <strong>Turn Detection</strong> mode.</li>
-                                <li>Configure <strong>Voice</strong> and <strong>Avatar</strong> settings.</li>
-                                <li>Click <strong>Connect</strong> to start.</li>
-                            </ol>
-                        </div>
+                <!-- Brand Header -->
+                <div class="sidebar-brand">
+                    <div class="brand-logo">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 17l10 5 10-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 12l10 5 10-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
                     </div>
-                </details>
+                    <div class="brand-info">
+                        <div class="brand-name">ITSM AI Voice Agent</div>
+                        <div class="brand-sub">Powered by Azure AI</div>
+                    </div>
+                    <div class="status-dot" id="connectionStatusDot" title="Offline"></div>
+                </div>
 
-                <!-- Connection Settings -->
-                <details class="settings-group">
-                    <summary>Connection Settings</summary>
+                <!-- Hidden credential fields — managed server-side via .env -->
+                <input type="hidden" id="mode" value="model" />
+                <input type="hidden" id="endpoint" value="" />
+                <input type="hidden" id="apiKey" value="" />
+                <input type="hidden" id="entraToken" value="" />
+                <div id="agentFields" style="display:none">
+                    <input type="hidden" id="agentProjectName" value="" />
+                    <div id="agentIdField" style="display:none"><input type="hidden" id="agentId" value="" /></div>
+                    <div id="agentNameField" style="display:none"><input type="hidden" id="agentName" value="" /></div>
+                </div>
+                <div id="subscriptionKeyField" style="display:none"></div>
+                <div id="entraTokenField" style="display:none"></div>
+
+                <!-- Session Model -->
+                <details class="settings-group" open>
+                    <summary>Session Model</summary>
                     <div class="settings-content">
-                        <label>Mode
-                            <select id="mode">
-                                <option value="model" selected>Model</option>
-                                <option value="agent">Agent</option>
-                                <option value="agent-v2">Agent V2</option>
-                            </select>
-                        </label>
-                        <label>Azure AI Services Endpoint
-                            <input type="text" id="endpoint" placeholder="Azure AI Services Endpoint" />
-                        </label>
-                        <div id="subscriptionKeyField">
-                            <label>Subscription Key
-                                <input type="password" id="apiKey" placeholder="Subscription Key" />
-                            </label>
-                        </div>
-                        <div id="entraTokenField" style="display:none">
-                            <label>Entra Token
-                                <input type="password" id="entraToken" placeholder="Entra Token" />
-                            </label>
-                        </div>
-                        <div id="agentFields" style="display:none">
-                            <label>Agent Project Name
-                                <input type="text" id="agentProjectName" placeholder="Project name" />
-                            </label>
-                            <div id="agentIdField">
-                                <label>Agent ID
-                                    <input type="text" id="agentId" placeholder="Agent ID" />
-                                </label>
-                            </div>
-                            <div id="agentNameField" style="display:none">
-                                <label>Agent Name
-                                    <input type="text" id="agentName" placeholder="Agent name" />
-                                </label>
-                            </div>
-                        </div>
                         <div id="modelField">
-                            <label>Model
+                            <label>AI Model
                                 <select id="model">
-                                    <option value="gpt-4o-realtime">GPT Realtime</option>
-                                    <option value="gpt-4o-mini-realtime">GPT Realtime Mini</option>
+                                    <option value="gpt-4o-realtime" selected>GPT-4o Realtime</option>
+                                    <option value="gpt-4o-mini-realtime">GPT-4o Realtime Mini</option>
                                     <option value="gpt-4.1">GPT-4.1 (Cascaded)</option>
                                     <option value="gpt-4.1-mini">GPT-4.1 Mini (Cascaded)</option>
                                     <option value="gpt-4.1-nano">GPT-4.1 Nano (Cascaded)</option>
@@ -92,6 +114,7 @@
                 <details class="settings-group">
                     <summary>Conversation Settings</summary>
                     <div class="settings-content">
+
                         <!-- SR Model (cascaded only) -->
                         <div id="srModelField" style="display:none">
                             <label>Speech Recognition Model
@@ -101,6 +124,7 @@
                                 </select>
                             </label>
                         </div>
+
                         <!-- Recognition Language (cascaded only, not mai-ears-1) -->
                         <div id="recognitionLanguageField" style="display:none">
                             <label>Recognition Language
@@ -123,42 +147,29 @@
                             </label>
                         </div>
 
-                        <label class="toggle-label">
-                            <span>Noise suppression</span>
-                            <input type="checkbox" id="useNS" />
-                        </label>
-                        <label class="toggle-label">
-                            <span>Echo cancellation</span>
-                            <input type="checkbox" id="useEC" />
-                        </label>
-
-                        <label>Turn detection
-                            <select id="turnDetectionType">
-                                <option value="server_vad" selected>Server VAD</option>
-                                <option value="azure_semantic_vad">Azure Semantic VAD</option>
-                            </select>
-                        </label>
-                        <div id="fillerWordsField" style="display:none">
-                            <label class="toggle-label">
-                                <span>Remove filler words</span>
-                                <input type="checkbox" id="removeFillerWords" />
-                            </label>
-                        </div>
-
-                        <!-- EOU Detection (cascaded only) -->
-                        <div id="eouDetectionField" style="display:none">
-                            <label>EOU detection
-                                <select id="eouDetectionType">
-                                    <option value="none" selected>Disabled</option>
-                                    <option value="semantic_detection_v1">Semantic Detection</option>
-                                </select>
-                            </label>
-                        </div>
+                        <!-- NS/EC/Turn detection always-on — hidden enterprise config -->
+                        <label style="display:none"><input type="checkbox" id="useNS" checked /></label>
+                        <label style="display:none"><input type="checkbox" id="useEC" checked /></label>
+                        <div style="display:none"><select id="turnDetectionType"><option value="server_vad" selected>Server VAD</option></select></div>
+                        <div id="fillerWordsField" style="display:none"><label class="toggle-label"><span>Remove filler words</span><input type="checkbox" id="removeFillerWords" /></label></div>
+                        <div id="eouDetectionField" style="display:none"><label><select id="eouDetectionType"><option value="none" selected>Disabled</option></select></label></div>
 
                         <!-- Instructions (model mode only) -->
                         <div id="instructionsField">
                             <label>Model instructions
-                                <textarea id="instructions" rows="4"></textarea>
+                                <textarea id="instructions" rows="4">You are a ServiceNow ITSM ticketing agent. Your sole purpose is to help users create, view, update, resolve, and manage ServiceNow incidents and tickets.
+
+You MUST:
+- Only respond to requests related to ServiceNow incident management (create, list, get, update, resolve, add comments, search incidents, look up users, check CMDB items).
+- Always confirm with the user before creating or modifying any incident.
+- Be concise, professional, and focused on ITSM operations.
+
+You MUST NOT:
+- Answer general knowledge questions, coding questions, or anything unrelated to ServiceNow ticketing.
+- Engage in casual conversation or off-topic discussion.
+- Roleplay as any other assistant or persona.
+
+If a user asks about anything outside of ServiceNow ticket management, politely decline and redirect: "I'm your ServiceNow ITSM agent. I can only help you create, view, or manage ServiceNow incidents. How can I assist you with a ticket?"</textarea>
                             </label>
                         </div>
 
@@ -173,6 +184,74 @@
                                 <input type="range" id="temperature" min="0" max="1.2" step="0.1" value="0.9" />
                                 <span id="tempValue">0.9</span>
                             </label>
+                        </div>
+
+                        <!-- ===== ServiceNow Tools ===== -->
+                        <div id="snowToolsField" class="config-section">
+                            <div class="section-title">ServiceNow Tools</div>
+
+                            <!-- Wake Up button -->
+                            <div style="margin-bottom:8px;">
+                                <button onclick="wakeupSnowInstance()" id="snowWakeupBtn"
+                                    style="width:100%;padding:7px 10px;background:#1d4ed8;color:#fff;border:none;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600;transition:opacity 0.2s;">
+                                    ⚡ Wake Up ServiceNow Instance
+                                </button>
+                                <div id="snowWakeupStatus" style="font-size:11px;margin-top:5px;text-align:center;min-height:16px;"></div>
+                            </div>
+
+                            <!-- Incidents Quick View -->
+                            <div style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-bottom:8px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;">
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <span style="font-size:13px;">🎫</span>
+                                        <span style="font-size:11px;font-weight:600;color:#15803d;">Incident List</span>
+                                    </div>
+                                    <div style="display:flex;gap:4px;">
+                                        <button onclick="toggleSnowPanel()" id="snowPanelToggleBtn"
+                                            title="Toggle inline view"
+                                            style="padding:2px 7px;font-size:10px;background:#16a34a;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
+                                            🗖 Expand
+                                        </button>
+                                        <a href="https://dev199303.service-now.com/incident_list.do" target="_blank"
+                                            title="Open in new tab"
+                                            style="padding:2px 7px;font-size:10px;background:#0ea5e9;color:#fff;border-radius:4px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;">
+                                            ↗ New Tab
+                                        </a>
+                                    </div>
+                                </div>
+                                <!-- Collapsible incidents table panel -->
+                                <div id="snowIncidentPanel" style="display:none;">
+                                    <!-- Filter bar -->
+                                    <div style="display:flex;gap:4px;padding:6px 8px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-wrap:wrap;">
+                                        <select id="snowFilterState" onchange="renderSnowIncidents()"
+                                            style="flex:1;min-width:80px;font-size:10px;padding:3px 4px;border:1px solid #d1d5db;border-radius:4px;color:#374151;background:#fff;">
+                                            <option value="">All States</option>
+                                            <option value="open">🟢 Open</option>
+                                            <option value="closed">⚫ Closed</option>
+                                        </select>
+                                        <select id="snowFilterPriority" onchange="renderSnowIncidents()"
+                                            style="flex:1;min-width:80px;font-size:10px;padding:3px 4px;border:1px solid #d1d5db;border-radius:4px;color:#374151;background:#fff;">
+                                            <option value="">All Priority</option>
+                                            <option value="1">🔴 Critical</option>
+                                            <option value="2">🟠 High</option>
+                                            <option value="3">🟡 Moderate</option>
+                                            <option value="4">🔵 Low</option>
+                                        </select>
+                                        <input id="snowFilterUser" oninput="renderSnowIncidents()" placeholder="👤 User..."
+                                            style="flex:1;min-width:70px;font-size:10px;padding:3px 5px;border:1px solid #d1d5db;border-radius:4px;color:#374151;" />
+                                    </div>
+                                    <div id="snowIncidentTableWrap" style="max-height:280px;overflow-y:auto;"></div>
+                                    <div style="padding:4px 8px;background:#f0fdf4;border-top:1px solid #bbf7d0;display:flex;justify-content:space-between;align-items:center;">
+                                        <span id="snowIncidentCount" style="font-size:10px;color:#6b7280;">dev199303.service-now.com</span>
+                                        <button onclick="loadSnowIncidents()" title="Reload"
+                                            style="font-size:10px;background:none;border:1px solid #d1d5db;border-radius:3px;padding:1px 6px;cursor:pointer;color:#374151;">
+                                            ↻ Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="snowToolsContainer"></div>
                         </div>
 
                         <!-- Voice Configuration -->
@@ -213,40 +292,40 @@
                             <div id="standardVoiceField" class="voice-variant standard-border">
                                 <label>Voice
                                     <select id="voiceName">
-                                            <option value="en-us-ava:DragonHDLatestNeural">DragonHDLatestNeural, Ava (HD)</option>
-                                            <option value="en-us-steffan:DragonHDLatestNeural">DragonHDLatestNeural, Steffan (HD)</option>
-                                            <option value="en-us-andrew:DragonHDLatestNeural">DragonHDLatestNeural, Andrew (HD)</option>
-                                            <option value="zh-cn-xiaochen:DragonHDLatestNeural">DragonHDLatestNeural, Xiaochen (HD)</option>
-                                            <option value="en-us-emma:DragonHDLatestNeural">DragonHDLatestNeural, Emma (HD)</option>
-                                            <option value="en-us-emma2:DragonHDLatestNeural">DragonHDLatestNeural, Emma (HD 2)</option>
-                                            <option value="en-us-andrew2:DragonHDLatestNeural">DragonHDLatestNeural, Andrew (HD 2)</option>
-                                            <option value="de-de-seraphina:DragonHDLatestNeural">DragonHDLatestNeural, Seraphina (HD)</option>
-                                            <option value="en-us-aria:DragonHDLatestNeural">DragonHDLatestNeural, Aria (HD)</option>
-                                            <option value="en-us-davis:DragonHDLatestNeural">DragonHDLatestNeural, Davis (HD)</option>
-                                            <option value="en-us-jenny:DragonHDLatestNeural">DragonHDLatestNeural, Jenny (HD)</option>
-                                            <option value="ja-jp-masaru:DragonHDLatestNeural">DragonHDLatestNeural, Masaru (HD)</option>
-                                            <option value="en-US-AvaMultilingualNeural" selected>Ava Multilingual</option>
-                                            <option value="en-US-AlloyTurboMultilingualNeural">Alloy Turbo Multilingual</option>
-                                            <option value="en-US-AndrewMultilingualNeural">Andrew Multilingual</option>
-                                            <option value="en-US-BrianMultilingualNeural">Brian Multilingual</option>
-                                            <option value="en-US-EmmaMultilingualNeural">Emma Multilingual</option>
-                                            <option value="en-US-NovaTurboMultilingualNeural">Nova Turbo Multilingual</option>
-                                            <option value="zh-CN-XiaoxiaoMultilingualNeural">Xiaoxiao Multilingual</option>
-                                            <option value="en-US-AvaNeural">Ava</option>
-                                            <option value="en-US-AndrewNeural">Andrew</option>
-                                            <option value="en-US-JennyNeural">Jenny</option>
-                                            <option value="zh-HK-HiuMaanNeural">HiuMaan (Cantonese)</option>
-                                            <option value="mt-MT-JosephNeural">Joseph (Maltese)</option>
-                                            <option value="zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural">Xiaoxiao2 HDFlash</option>
-                                            <option value="zh-CN-Yunyi:DragonHDFlashLatestNeural">Yunyi HDFlash</option>
-                                            <option value="alloy">Alloy (OpenAI)</option>
-                                            <option value="ash">Ash (OpenAI)</option>
-                                            <option value="ballad">Ballad (OpenAI)</option>
-                                            <option value="coral">Coral (OpenAI)</option>
-                                            <option value="echo">Echo (OpenAI)</option>
-                                            <option value="sage">Sage (OpenAI)</option>
-                                            <option value="shimmer">Shimmer (OpenAI)</option>
-                                            <option value="verse">Verse (OpenAI)</option>
+                                        <option value="en-us-ava:DragonHDLatestNeural">DragonHDLatestNeural, Ava (HD)</option>
+                                        <option value="en-us-steffan:DragonHDLatestNeural">DragonHDLatestNeural, Steffan (HD)</option>
+                                        <option value="en-us-andrew:DragonHDLatestNeural">DragonHDLatestNeural, Andrew (HD)</option>
+                                        <option value="zh-cn-xiaochen:DragonHDLatestNeural">DragonHDLatestNeural, Xiaochen (HD)</option>
+                                        <option value="en-us-emma:DragonHDLatestNeural">DragonHDLatestNeural, Emma (HD)</option>
+                                        <option value="en-us-emma2:DragonHDLatestNeural">DragonHDLatestNeural, Emma (HD 2)</option>
+                                        <option value="en-us-andrew2:DragonHDLatestNeural">DragonHDLatestNeural, Andrew (HD 2)</option>
+                                        <option value="de-de-seraphina:DragonHDLatestNeural">DragonHDLatestNeural, Seraphina (HD)</option>
+                                        <option value="en-us-aria:DragonHDLatestNeural">DragonHDLatestNeural, Aria (HD)</option>
+                                        <option value="en-us-davis:DragonHDLatestNeural">DragonHDLatestNeural, Davis (HD)</option>
+                                        <option value="en-us-jenny:DragonHDLatestNeural">DragonHDLatestNeural, Jenny (HD)</option>
+                                        <option value="ja-jp-masaru:DragonHDLatestNeural">DragonHDLatestNeural, Masaru (HD)</option>
+                                        <option value="en-US-AvaMultilingualNeural" selected>Ava Multilingual</option>
+                                        <option value="en-US-AlloyTurboMultilingualNeural">Alloy Turbo Multilingual</option>
+                                        <option value="en-US-AndrewMultilingualNeural">Andrew Multilingual</option>
+                                        <option value="en-US-BrianMultilingualNeural">Brian Multilingual</option>
+                                        <option value="en-US-EmmaMultilingualNeural">Emma Multilingual</option>
+                                        <option value="en-US-NovaTurboMultilingualNeural">Nova Turbo Multilingual</option>
+                                        <option value="zh-CN-XiaoxiaoMultilingualNeural">Xiaoxiao Multilingual</option>
+                                        <option value="en-US-AvaNeural">Ava</option>
+                                        <option value="en-US-AndrewNeural">Andrew</option>
+                                        <option value="en-US-JennyNeural">Jenny</option>
+                                        <option value="zh-HK-HiuMaanNeural">HiuMaan (Cantonese)</option>
+                                        <option value="mt-MT-JosephNeural">Joseph (Maltese)</option>
+                                        <option value="zh-CN-Xiaoxiao2:DragonHDFlashLatestNeural">Xiaoxiao2 HDFlash</option>
+                                        <option value="zh-CN-Yunyi:DragonHDFlashLatestNeural">Yunyi HDFlash</option>
+                                        <option value="alloy">Alloy (OpenAI)</option>
+                                        <option value="ash">Ash (OpenAI)</option>
+                                        <option value="ballad">Ballad (OpenAI)</option>
+                                        <option value="coral">Coral (OpenAI)</option>
+                                        <option value="echo">Echo (OpenAI)</option>
+                                        <option value="sage">Sage (OpenAI)</option>
+                                        <option value="shimmer">Shimmer (OpenAI)</option>
+                                        <option value="verse">Verse (OpenAI)</option>
                                     </select>
                                 </label>
                             </div>
@@ -401,15 +480,17 @@
                                 </div>
                             </div>
                         </div>
+
                     </div>
                 </details>
+
             </div>
 
             <!-- Connect / Disconnect Button -->
             <div class="sidebar-footer">
                 <button id="connectBtn" class="btn btn-connect" onclick="toggleConnection()">
                     <svg id="connectIcon" class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-                    <span id="connectBtnText">Connect</span>
+                    <span id="connectBtnText">Launch Agent</span>
                 </button>
             </div>
         </aside>
@@ -421,6 +502,19 @@
                 <button class="btn btn-icon mobile-menu" onclick="toggleSidebar()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
+                <div class="header-brand">
+                    <div class="header-brand-icon">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 17l10 5 10-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 12l10 5 10-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="header-title">ServiceNow AI ITSM Voice Agent</div>
+                        <div class="header-subtitle">Enterprise Intelligence Platform</div>
+                    </div>
+                </div>
                 <div class="header-right">
                     <label class="toggle-label compact">
                         <span>Developer mode</span>
@@ -448,6 +542,18 @@
 
                 <!-- Chat messages -->
                 <div id="chatArea" class="chat-area">
+                    <!-- Suggested questions — hidden once a message is added -->
+                    <div id="suggestedQuestions" style="
+                        padding:24px 20px 16px;
+                        display:flex; flex-direction:column; align-items:center;
+                        gap:10px; animation:fadeIn 0.4s ease;
+                    ">
+                        <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:4px;letter-spacing:0.01em;">
+                            💬 Try asking me...
+                        </div>
+                        <div id="sqGrid" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:600px;"></div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">Click a question or speak after launching the agent</div>
+                    </div>
                     <div id="messages" class="messages"></div>
                 </div>
             </div>
@@ -458,13 +564,11 @@
                     <input type="text" id="textInput" placeholder="Type your message..."
                            onkeydown="if(event.key==='Enter')sendTextMessage()" />
                     <button id="micBtn" class="btn btn-icon mic-btn" onclick="toggleMicrophone()" title="Toggle microphone">
-                        <!-- Off icon: mic with slash (default state) -->
                         <svg class="mic-off-icon" viewBox="0 0 20 20" width="20" height="20" fill="#242424">
                             <path d="M10 13a3 3 0 003-3V5a3 3 0 00-6 0v5a3 3 0 003 3z"/>
                             <path d="M15 10a5 5 0 01-10 0H3a7 7 0 006 6.92V20h2v-3.08A7 7 0 0017 10h-2z"/>
                             <line x1="3" y1="3" x2="17" y2="17" stroke="#242424" stroke-width="2" stroke-linecap="round"/>
                         </svg>
-                        <!-- Recording icon: red circle (active state) -->
                         <svg class="mic-on-icon" viewBox="0 0 20 20" width="20" height="20" style="display:none">
                             <circle cx="10" cy="10" r="6" fill="#A80000"/>
                         </svg>
@@ -481,17 +585,15 @@
                     <div class="recording-border">
                         <div class="sound-wave" id="soundWaveLeft"></div>
                         <button id="recordBtn" class="record-btn" onclick="toggleMicrophone()" title="Turn on/off microphone">
-                            <!-- Off icon: mic with slash -->
                             <svg class="mic-off-icon" viewBox="0 0 20 20" width="20" height="20" fill="#242424">
                                 <path d="M10 13a3 3 0 003-3V5a3 3 0 00-6 0v5a3 3 0 003 3z"/>
                                 <path d="M15 10a5 5 0 01-10 0H3a7 7 0 006 6.92V20h2v-3.08A7 7 0 0017 10h-2z"/>
                                 <line x1="3" y1="3" x2="17" y2="17" stroke="#242424" stroke-width="2" stroke-linecap="round"/>
                             </svg>
-                            <!-- Recording icon: red circle -->
                             <svg class="mic-on-icon" viewBox="0 0 20 20" width="20" height="20" style="display:none">
                                 <circle cx="10" cy="10" r="6" fill="#A80000"/>
                             </svg>
-                            <span class="microphone-label">Turn on microphone</span>
+                            <span class="microphone-label">Start Voice Session</span>
                         </button>
                         <div class="sound-wave" id="soundWaveRight"></div>
                     </div>

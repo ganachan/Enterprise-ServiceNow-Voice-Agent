@@ -1,0 +1,16 @@
+.env
+.venv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+node_modules/
+package.json
+package-lock.json
+*.md
+.git
+.gitignore
+check_cosmos.py
+static/index copy.html
+static/app copy.js
+static/index_single_agent.html

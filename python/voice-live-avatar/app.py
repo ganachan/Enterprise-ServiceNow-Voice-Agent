@@ -317,7 +317,7 @@ async def auth_verify(request: Request):
 # Credentials are hardcoded server-side and never exposed to the browser.
 _SNOW_INSTANCE = "https://dev199303.service-now.com"
 _SNOW_USER = "Admin"
-_SNOW_PASSWORD = "pU%8qf9!WmLN"
+_SNOW_PASSWORD = "p"
 
 
 @app.get("/api/snow/wakeup")
